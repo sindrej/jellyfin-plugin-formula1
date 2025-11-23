@@ -1,4 +1,5 @@
 ---
+# Jellyfin Plugin Metadata
 name: "TheSportsDB"
 guid: "55d3efd0-c081-4e0b-a57a-09402a4d549d"
 version: "1.0.0.0"
