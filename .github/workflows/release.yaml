@@ -1,0 +1,213 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'build.yaml'
+      - 'Jellyfin.Plugin.TheSportsDB/**'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from build.yaml
+        id: get_version
+        run: |
+          VERSION=$(grep '^version:' build.yaml | sed 's/version: "\(.*\)"/\1/' | tr -d ' ')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION%.*}" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+          echo "Tag: v${VERSION%.*}"
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git rev-parse "refs/tags/${{ steps.get_version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag ${{ steps.get_version.outputs.tag }} already exists, skipping release"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Tag ${{ steps.get_version.outputs.tag }} does not exist, proceeding with release"
+          fi
+
+      - name: Setup .NET
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build and publish plugin
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          dotnet publish Jellyfin.Plugin.TheSportsDB/Jellyfin.Plugin.TheSportsDB.csproj \
+            --configuration Release \
+            --output publish/
+
+      - name: Create release package
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          mkdir -p release
+          cd publish
+          zip -r ../release/jellyfin-plugin-formula1_${{ steps.get_version.outputs.version }}.zip \
+            Jellyfin.Plugin.TheSportsDB.dll
+          cd ..
+
+      - name: Calculate checksums
+        if: steps.check_tag.outputs.exists == 'false'
+        id: checksums
+        run: |
+          MD5_CHECKSUM=$(md5sum release/jellyfin-plugin-formula1_${{ steps.get_version.outputs.version }}.zip | cut -d' ' -f1)
+          SHA256_CHECKSUM=$(sha256sum release/jellyfin-plugin-formula1_${{ steps.get_version.outputs.version }}.zip | cut -d' ' -f1)
+
+          echo "md5=$MD5_CHECKSUM" >> $GITHUB_OUTPUT
+          echo "sha256=$SHA256_CHECKSUM" >> $GITHUB_OUTPUT
+
+          echo "MD5: $MD5_CHECKSUM"
+          echo "SHA256: $SHA256_CHECKSUM"
+
+          # Create checksum file
+          echo "MD5: $MD5_CHECKSUM" > release/checksums.txt
+          echo "SHA256: $SHA256_CHECKSUM" >> release/checksums.txt
+
+      - name: Update manifest.json
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TAG="${{ steps.get_version.outputs.tag }}"
+          CHECKSUM="${{ steps.checksums.outputs.md5 }}"
+
+          # Read changelog for this version
+          CHANGELOG=$(awk '/^## \['"${VERSION%.*}"'\]/, /^## \[/ {if (/^## \['"${VERSION%.*}"'\]/) p=1; else if (/^## \[/ && p) exit; if (p && !/^## \[/) print}' CHANGELOG.md | sed '/^$/d' | head -20)
+
+          # Escape changelog for JSON
+          CHANGELOG_ESCAPED=$(echo "$CHANGELOG" | jq -Rs .)
+
+          # Create new version entry
+          NEW_VERSION=$(cat <<EOF
+          {
+            "version": "$VERSION",
+            "changelog": $CHANGELOG_ESCAPED,
+            "targetAbi": "10.9.0.0",
+            "sourceUrl": "https://github.com/${{ github.repository }}/releases/download/$TAG/jellyfin-plugin-formula1_$VERSION.zip",
+            "checksum": "$CHECKSUM",
+            "timestamp": "$TIMESTAMP"
+          }
+          EOF
+          )
+
+          # Update manifest.json - add new version at the beginning of versions array
+          jq --argjson newVersion "$NEW_VERSION" \
+            '.[0].versions |= [$newVersion] + .' \
+            manifest.json > manifest.json.tmp
+
+          mv manifest.json.tmp manifest.json
+
+          echo "Updated manifest.json with version $VERSION"
+
+      - name: Commit updated manifest
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "Update manifest.json for release ${{ steps.get_version.outputs.tag }}"
+          git push
+
+      - name: Create git tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          git tag -a ${{ steps.get_version.outputs.tag }} -m "Release ${{ steps.get_version.outputs.tag }}"
+          git push origin ${{ steps.get_version.outputs.tag }}
+
+      - name: Extract changelog for release
+        if: steps.check_tag.outputs.exists == 'false'
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          CHANGELOG=$(awk '/^## \['"${VERSION%.*}"'\]/, /^## \[/ {if (/^## \['"${VERSION%.*}"'\]/) p=1; else if (/^## \[/ && p) exit; if (p) print}' CHANGELOG.md)
+
+          # Save to file for release notes
+          echo "$CHANGELOG" > release_notes.md
+
+          # Add installation instructions
+          cat >> release_notes.md <<'EOF'
+
+---
+
+## Installation
+
+### Option 1: Install from Repository (Recommended)
+
+Add this repository to Jellyfin:
+```
+https://raw.githubusercontent.com/${{ github.repository }}/master/manifest.json
+```
+
+Then install "TheSportsDB" from the plugin catalog.
+
+### Option 2: Manual Installation
+
+1. Download `jellyfin-plugin-formula1_${{ steps.get_version.outputs.version }}.zip`
+2. Extract `Jellyfin.Plugin.TheSportsDB.dll`
+3. Copy to your Jellyfin plugins directory
+4. Restart Jellyfin
+
+## Requirements
+
+- Jellyfin 10.9.0 or later
+- .NET 8.0 Runtime
+
+## Documentation
+
+See the [README](https://github.com/${{ github.repository }}) for full documentation.
+EOF
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag }}
+          name: TheSportsDB Formula 1 Plugin ${{ steps.get_version.outputs.tag }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            release/jellyfin-plugin-formula1_${{ steps.get_version.outputs.version }}.zip
+            release/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release summary
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          echo "## Release Created! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.get_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ steps.get_version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**MD5:** ${{ steps.checksums.outputs.md5 }}" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256:** ${{ steps.checksums.outputs.sha256 }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files Released" >> $GITHUB_STEP_SUMMARY
+          echo "- jellyfin-plugin-formula1_${{ steps.get_version.outputs.version }}.zip" >> $GITHUB_STEP_SUMMARY
+          echo "- checksums.txt" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### What Was Updated" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Built and packaged plugin DLL" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Updated manifest.json with new version" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Created git tag ${{ steps.get_version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Created GitHub release with artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository URL:** https://raw.githubusercontent.com/${{ github.repository }}/master/manifest.json" >> $GITHUB_STEP_SUMMARY
