@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace Jellyfin.Plugin.TheSportsDB.API.Models;
@@ -132,16 +133,4 @@ public class Event
     /// </summary>
     [JsonPropertyName("intSpectators")]
     public string? IntSpectators { get; set; }
-}
-
-/// <summary>
-/// Response wrapper for events from TheSportsDB API.
-/// </summary>
-public class EventsResponse
-{
-    /// <summary>
-    /// Gets or sets the list of events.
-    /// </summary>
-    [JsonPropertyName("events")]
-    public List<Event>? Events { get; set; }
 }

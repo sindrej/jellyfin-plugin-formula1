@@ -15,6 +15,8 @@ namespace Jellyfin.Plugin.TheSportsDB.Cache;
 /// </summary>
 public class MetadataCache
 {
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
+
     private readonly IApplicationPaths _applicationPaths;
     private readonly ILogger _logger;
     private readonly string _cacheDirectory;
@@ -83,13 +85,14 @@ public class MetadataCache
     /// <param name="key">The cache key.</param>
     /// <param name="value">The value to cache.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task SetAsync<T>(string key, T value, CancellationToken cancellationToken)
         where T : class
     {
         try
         {
             var filePath = GetCacheFilePath(key);
-            var json = JsonSerializer.Serialize(value, new JsonSerializerOptions { WriteIndented = false });
+            var json = JsonSerializer.Serialize(value, JsonOptions);
 
             await File.WriteAllTextAsync(filePath, json, cancellationToken).ConfigureAwait(false);
             _logger.LogDebug("Cache set for key: {Key}", key);
@@ -138,9 +141,8 @@ public class MetadataCache
     /// <returns>The hex-encoded hash.</returns>
     private string ComputeHash(string key)
     {
-        using var sha256 = SHA256.Create();
         var bytes = Encoding.UTF8.GetBytes(key);
-        var hashBytes = sha256.ComputeHash(bytes);
-        return BitConverter.ToString(hashBytes).Replace("-", string.Empty).ToLowerInvariant();
+        var hashBytes = SHA256.HashData(bytes);
+        return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 }

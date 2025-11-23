@@ -20,18 +20,24 @@ namespace Jellyfin.Plugin.TheSportsDB.Providers;
 /// </summary>
 public class TheSportsDBImageProvider : IRemoteImageProvider
 {
+    private static readonly ImageType[] EpisodeImageTypes = { ImageType.Primary, ImageType.Thumb, ImageType.Backdrop };
+    private static readonly ImageType[] SeriesImageTypes = { ImageType.Primary, ImageType.Banner, ImageType.Backdrop };
+    private static readonly char[] NameSeparators = { ' ', '-', '_' };
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TheSportsDBImageProvider> _logger;
+    private readonly ILoggerFactory _loggerFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TheSportsDBImageProvider"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
-    /// <param name="logger">The logger.</param>
-    public TheSportsDBImageProvider(IHttpClientFactory httpClientFactory, ILogger<TheSportsDBImageProvider> logger)
+    /// <param name="loggerFactory">The logger factory.</param>
+    public TheSportsDBImageProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
     {
         _httpClientFactory = httpClientFactory;
-        _logger = logger;
+        _loggerFactory = loggerFactory;
+        _logger = loggerFactory.CreateLogger<TheSportsDBImageProvider>();
     }
 
     /// <inheritdoc />
@@ -48,12 +54,12 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     {
         if (item is Episode)
         {
-            return new[] { ImageType.Primary, ImageType.Thumb, ImageType.Backdrop };
+            return EpisodeImageTypes;
         }
 
         if (item is Series)
         {
-            return new[] { ImageType.Primary, ImageType.Banner, ImageType.Backdrop };
+            return SeriesImageTypes;
         }
 
         return Array.Empty<ImageType>();
@@ -71,7 +77,7 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
 
         try
         {
-            var client = new TheSportsDBClient(_httpClientFactory, _logger);
+            var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
 
             if (item is Episode episode)
             {
@@ -208,17 +214,27 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
         }
 
         // Add fanart images
-        foreach (var fanart in new[] { team.StrFanart1, team.StrFanart2, team.StrFanart3, team.StrFanart4 })
+        AddFanartImage(team.StrFanart1, images);
+        AddFanartImage(team.StrFanart2, images);
+        AddFanartImage(team.StrFanart3, images);
+        AddFanartImage(team.StrFanart4, images);
+    }
+
+    /// <summary>
+    /// Adds a fanart image to the collection if the URL is not empty.
+    /// </summary>
+    /// <param name="fanartUrl">The fanart URL.</param>
+    /// <param name="images">The images collection.</param>
+    private void AddFanartImage(string? fanartUrl, List<RemoteImageInfo> images)
+    {
+        if (!string.IsNullOrEmpty(fanartUrl))
         {
-            if (!string.IsNullOrEmpty(fanart))
+            images.Add(new RemoteImageInfo
             {
-                images.Add(new RemoteImageInfo
-                {
-                    Url = fanart,
-                    Type = ImageType.Backdrop,
-                    ProviderName = Name
-                });
-            }
+                Url = fanartUrl,
+                Type = ImageType.Backdrop,
+                ProviderName = Name
+            });
         }
     }
 
@@ -243,7 +259,7 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
             return null;
         }
 
-        var parts = name.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = name.Split(NameSeparators, StringSplitOptions.RemoveEmptyEntries);
         foreach (var part in parts)
         {
             if (int.TryParse(part, out var year) && year >= 1950 && year <= 2100)

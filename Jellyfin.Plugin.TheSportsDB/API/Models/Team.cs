@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace Jellyfin.Plugin.TheSportsDB.API.Models;
@@ -138,16 +139,4 @@ public class Team
     /// </summary>
     [JsonPropertyName("strFanart4")]
     public string? StrFanart4 { get; set; }
-}
-
-/// <summary>
-/// Response wrapper for teams from TheSportsDB API.
-/// </summary>
-public class TeamsResponse
-{
-    /// <summary>
-    /// Gets or sets the list of teams.
-    /// </summary>
-    [JsonPropertyName("teams")]
-    public List<Team>? Teams { get; set; }
 }

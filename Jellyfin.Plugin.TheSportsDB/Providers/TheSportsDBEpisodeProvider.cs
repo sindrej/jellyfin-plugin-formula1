@@ -21,16 +21,18 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TheSportsDBEpisodeProvider> _logger;
+    private readonly ILoggerFactory _loggerFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TheSportsDBEpisodeProvider"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
-    /// <param name="logger">The logger.</param>
-    public TheSportsDBEpisodeProvider(IHttpClientFactory httpClientFactory, ILogger<TheSportsDBEpisodeProvider> logger)
+    /// <param name="loggerFactory">The logger factory.</param>
+    public TheSportsDBEpisodeProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
     {
         _httpClientFactory = httpClientFactory;
-        _logger = logger;
+        _loggerFactory = loggerFactory;
+        _logger = loggerFactory.CreateLogger<TheSportsDBEpisodeProvider>();
     }
 
     /// <inheritdoc />
@@ -48,7 +50,7 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
 
         try
         {
-            var client = new TheSportsDBClient(_httpClientFactory, _logger);
+            var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
 
             // Try to extract season year from series name or parent index
             var seasonYear = ExtractSeasonYear(searchInfo);
@@ -133,7 +135,7 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
 
         try
         {
-            var client = new TheSportsDBClient(_httpClientFactory, _logger);
+            var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
             var eventId = info.GetProviderId("TheSportsDB");
 
             API.Models.Event? raceEvent = null;
@@ -229,9 +231,9 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
         }
 
         // Try to extract year from series name (e.g., "Formula 1 2024")
-        if (!string.IsNullOrEmpty(info.SeriesName))
+        if (!string.IsNullOrEmpty(info.Name))
         {
-            var parts = info.SeriesName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var parts = info.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             foreach (var part in parts)
             {
                 if (int.TryParse(part, out var year) && year >= 1950 && year <= 2100)
