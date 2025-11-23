@@ -58,10 +58,33 @@ jobs:
       - name: Create release package
         if: steps.check_tag.outputs.exists == 'false'
         run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Create meta.json
+          cat > publish/meta.json <<EOF
+{
+  "category": "Metadata",
+  "guid": "55d3efd0-c081-4e0b-a57a-09402a4d549d",
+  "name": "TheSportsDB",
+  "description": "Provides Formula 1 metadata for seasons, races, teams, and drivers using TheSportsDB.com API. Supports organizing F1 race recordings with detailed metadata including race results, team information, and driver data.",
+  "overview": "Formula 1 metadata provider using TheSportsDB API",
+  "owner": "sindrej",
+  "version": "${VERSION}",
+  "changelog": "",
+  "targetAbi": "10.9.0.0",
+  "sourceUrl": "https://github.com/${{ github.repository }}",
+  "timestamp": "${TIMESTAMP}",
+  "imageUrl": "https://raw.githubusercontent.com/${{ github.repository }}/master/images/logo.png"
+}
+EOF
+
+          # Create release zip with DLL and meta.json
           mkdir -p release
           cd publish
-          zip -r ../release/jellyfin-plugin-formula1_${{ steps.get_version.outputs.version }}.zip \
-            Jellyfin.Plugin.TheSportsDB.dll
+          zip -r ../release/jellyfin-plugin-formula1_${VERSION}.zip \
+            Jellyfin.Plugin.TheSportsDB.dll \
+            meta.json
           cd ..
 
       - name: Calculate checksums
@@ -137,13 +160,14 @@ jobs:
         id: changelog
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
+          REPO="${{ github.repository }}"
           CHANGELOG=$(awk '/^## \['"${VERSION%.*}"'\]/, /^## \[/ {if (/^## \['"${VERSION%.*}"'\]/) p=1; else if (/^## \[/ && p) exit; if (p) print}' CHANGELOG.md)
 
           # Save to file for release notes
           echo "$CHANGELOG" > release_notes.md
 
           # Add installation instructions
-          cat >> release_notes.md <<'EOF'
+          cat >> release_notes.md <<EOF
 
 ---
 
@@ -152,16 +176,16 @@ jobs:
 ### Option 1: Install from Repository (Recommended)
 
 Add this repository to Jellyfin:
-```
-https://raw.githubusercontent.com/${{ github.repository }}/master/manifest.json
-```
+\`\`\`
+https://raw.githubusercontent.com/${REPO}/master/manifest.json
+\`\`\`
 
 Then install "TheSportsDB" from the plugin catalog.
 
 ### Option 2: Manual Installation
 
-1. Download `jellyfin-plugin-formula1_${{ steps.get_version.outputs.version }}.zip`
-2. Extract `Jellyfin.Plugin.TheSportsDB.dll`
+1. Download \`jellyfin-plugin-formula1_${VERSION}.zip\`
+2. Extract \`Jellyfin.Plugin.TheSportsDB.dll\`
 3. Copy to your Jellyfin plugins directory
 4. Restart Jellyfin
 
@@ -172,7 +196,7 @@ Then install "TheSportsDB" from the plugin catalog.
 
 ## Documentation
 
-See the [README](https://github.com/${{ github.repository }}) for full documentation.
+See the [README](https://github.com/${REPO}) for full documentation.
 EOF
 
       - name: Create GitHub Release

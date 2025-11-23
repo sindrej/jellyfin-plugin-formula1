@@ -45,6 +45,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API: TheSportsDB v1
 - License: GPLv3
 
+## [1.2.0] - 2025-11-23
+
+### Fixed
+- Fixed GitHub release workflow heredoc syntax error
+- Corrected release workflow to actually create GitHub releases
+- Added meta.json metadata file to plugin package (required by Jellyfin)
+
+### Changed
+- Improved release workflow reliability and error handling
+- Enhanced plugin package structure with proper metadata
+
+## [1.1.0] - 2025-11-23
+
+### Fixed
+- Corrected assembly version mismatch between compiled DLL and manifest
+- Updated Directory.Build.props to properly version the plugin DLL
+- Cleaned up duplicate manifest.json entries
+
+### Changed
+- Bumped version to 1.1.0.0 to resolve installation issues
+
 ## [Unreleased]
 
 ### Planned Features
@@ -58,4 +79,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- [1.2.0] - Workflow fixes and meta.json support
+- [1.1.0] - Bug fix release (version mismatch)
 - [1.0.0] - Initial Release
