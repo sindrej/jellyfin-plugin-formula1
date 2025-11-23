@@ -143,6 +143,6 @@ public class MetadataCache
     {
         var bytes = Encoding.UTF8.GetBytes(key);
         var hashBytes = SHA256.HashData(bytes);
-        return BitConverter.ToString(hashBytes).Replace("-", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
+        return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 }
