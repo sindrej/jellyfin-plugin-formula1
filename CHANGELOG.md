@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API: TheSportsDB v1
 - License: GPLv3
 
+## [1.3.0] - 2025-11-23
+
+### Fixed
+- Fixed heredoc termination issues in release workflow
+- Ensured GitHub releases are properly created with all artifacts
+
 ## [1.2.0] - 2025-11-23
 
 ### Fixed
@@ -79,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- [1.3.0] - Final workflow fixes for GitHub releases
 - [1.2.0] - Workflow fixes and meta.json support
 - [1.1.0] - Bug fix release (version mismatch)
 - [1.0.0] - Initial Release
