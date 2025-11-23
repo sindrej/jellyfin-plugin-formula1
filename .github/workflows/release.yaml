@@ -62,23 +62,25 @@ jobs:
           REPO="${{ github.repository }}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # Create meta.json
-          cat > publish/meta.json <<EOF
-{
-  "category": "Metadata",
-  "guid": "55d3efd0-c081-4e0b-a57a-09402a4d549d",
-  "name": "TheSportsDB",
-  "description": "Provides Formula 1 metadata for seasons, races, teams, and drivers using TheSportsDB.com API. Supports organizing F1 race recordings with detailed metadata including race results, team information, and driver data.",
-  "overview": "Formula 1 metadata provider using TheSportsDB API",
-  "owner": "sindrej",
-  "version": "${VERSION}",
-  "changelog": "",
-  "targetAbi": "10.9.0.0",
-  "sourceUrl": "https://github.com/${REPO}",
-  "timestamp": "${TIMESTAMP}",
-  "imageUrl": "https://raw.githubusercontent.com/${REPO}/master/images/logo.png"
-}
-EOF
+          # Create meta.json using jq
+          jq -n \
+            --arg version "$VERSION" \
+            --arg repo "$REPO" \
+            --arg timestamp "$TIMESTAMP" \
+            '{
+              category: "Metadata",
+              guid: "55d3efd0-c081-4e0b-a57a-09402a4d549d",
+              name: "TheSportsDB",
+              description: "Provides Formula 1 metadata for seasons, races, teams, and drivers using TheSportsDB.com API. Supports organizing F1 race recordings with detailed metadata including race results, team information, and driver data.",
+              overview: "Formula 1 metadata provider using TheSportsDB API",
+              owner: "sindrej",
+              version: $version,
+              changelog: "",
+              targetAbi: "10.9.0.0",
+              sourceUrl: ("https://github.com/" + $repo),
+              timestamp: $timestamp,
+              imageUrl: ("https://raw.githubusercontent.com/" + $repo + "/master/images/logo.png")
+            }' > publish/meta.json
 
           # Create release zip with DLL and meta.json
           mkdir -p release
