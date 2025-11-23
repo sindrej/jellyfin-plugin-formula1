@@ -10,6 +10,14 @@
     "versions": [
       {
         "version": "1.0.0.0",
+        "changelog": "\n",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://github.com/sindrej/jellyfin-plugin-formula1/releases/download/v1.0.0/jellyfin-plugin-formula1_1.0.0.0.zip",
+        "checksum": "85bf61d0ea3a19f26842f74f729ef6a9",
+        "timestamp": "2025-11-23T21:01:27Z"
+      },
+      {
+        "version": "1.0.0.0",
         "changelog": "Initial release with F1 metadata support\n- Episode (race) metadata provider\n- Series (season) metadata provider\n- Image provider for posters and fanart\n- Rate limiting and caching\n- Configurable API settings",
         "targetAbi": "10.9.0.0",
         "sourceUrl": "https://github.com/sindrej/jellyfin-plugin-formula1/releases/download/v1.0.0/jellyfin-plugin-formula1_1.0.0.0.zip",
