@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -18,18 +19,23 @@ namespace Jellyfin.Plugin.TheSportsDB.Providers;
 /// </summary>
 public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesInfo>
 {
+    private static readonly string[] FormulaOneGenres = { "Formula 1", "Motorsport", "Racing" };
+    private static readonly char[] NameSeparators = { ' ', '-', '_' };
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TheSportsDBSeriesProvider> _logger;
+    private readonly ILoggerFactory _loggerFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TheSportsDBSeriesProvider"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
-    /// <param name="logger">The logger.</param>
-    public TheSportsDBSeriesProvider(IHttpClientFactory httpClientFactory, ILogger<TheSportsDBSeriesProvider> logger)
+    /// <param name="loggerFactory">The logger factory.</param>
+    public TheSportsDBSeriesProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
     {
         _httpClientFactory = httpClientFactory;
-        _logger = logger;
+        _loggerFactory = loggerFactory;
+        _logger = loggerFactory.CreateLogger<TheSportsDBSeriesProvider>();
     }
 
     /// <inheritdoc />
@@ -59,7 +65,7 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
                 };
 
                 result.SetProviderId("TheSportsDB", $"formula1_{year.Value}");
-                result.SetProviderId("Formula1Season", year.Value.ToString());
+                result.SetProviderId("Formula1Season", year.Value.ToString(CultureInfo.InvariantCulture));
 
                 results.Add(result);
             }
@@ -97,7 +103,7 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
 
             if (seasonYear.HasValue)
             {
-                var client = new TheSportsDBClient(_httpClientFactory, _logger);
+                var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
 
                 // Fetch one event from the season to verify it exists and get some metadata
                 var events = await client.GetEventsForSeasonAsync(seasonYear.Value, cancellationToken).ConfigureAwait(false);
@@ -111,10 +117,10 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
                 };
 
                 result.Item.SetProviderId("TheSportsDB", $"formula1_{seasonYear.Value}");
-                result.Item.SetProviderId("Formula1Season", seasonYear.Value.ToString());
+                result.Item.SetProviderId("Formula1Season", seasonYear.Value.ToString(CultureInfo.InvariantCulture));
 
                 // Add F1 as a genre/tag
-                result.Item.Genres = new[] { "Formula 1", "Motorsport", "Racing" };
+                result.Item.Genres = FormulaOneGenres;
 
                 if (firstEvent != null && !string.IsNullOrEmpty(firstEvent.DateEvent) && DateTime.TryParse(firstEvent.DateEvent, out var firstRaceDate))
                 {
@@ -160,7 +166,7 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
             return null;
         }
 
-        var parts = name.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = name.Split(NameSeparators, StringSplitOptions.RemoveEmptyEntries);
         foreach (var part in parts)
         {
             if (int.TryParse(part, out var year) && year >= 1950 && year <= 2100)

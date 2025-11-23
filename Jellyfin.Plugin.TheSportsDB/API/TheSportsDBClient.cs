@@ -14,15 +14,21 @@ namespace Jellyfin.Plugin.TheSportsDB.API;
 /// <summary>
 /// Client for interacting with TheSportsDB API.
 /// </summary>
-public class TheSportsDBClient
+public class TheSportsDBClient : IDisposable
 {
     private const string BaseUrl = "https://www.thesportsdb.com/api/v1/json";
     private const int FormulaOneLeagueId = 4370;
+
+    private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TheSportsDBClient> _logger;
     private readonly SemaphoreSlim _rateLimitSemaphore = new SemaphoreSlim(1, 1);
     private readonly Queue<DateTime> _requestTimestamps = new Queue<DateTime>();
+    private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TheSportsDBClient"/> class.
@@ -49,6 +55,7 @@ public class TheSportsDBClient
     /// Enforces rate limiting before making API requests.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task EnforceRateLimitAsync(CancellationToken cancellationToken)
     {
         await _rateLimitSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -119,10 +126,7 @@ public class TheSportsDBClient
                 response.EnsureSuccessStatusCode();
 
                 var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                var result = JsonSerializer.Deserialize<T>(content, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var result = JsonSerializer.Deserialize<T>(content, JsonOptions);
 
                 return result;
             }
@@ -150,11 +154,11 @@ public class TheSportsDBClient
     /// <param name="season">The season year (e.g., 2024).</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>List of events.</returns>
-    public async Task<List<Event>> GetEventsForSeasonAsync(int season, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Event>> GetEventsForSeasonAsync(int season, CancellationToken cancellationToken)
     {
         var endpoint = $"eventsseason.php?id={FormulaOneLeagueId}&s={season}";
         var response = await GetAsync<EventsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Events ?? new List<Event>();
+        return response?.Events ?? Array.Empty<Event>();
     }
 
     /// <summary>
@@ -176,11 +180,11 @@ public class TheSportsDBClient
     /// <param name="eventName">The event name to search for.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>List of matching events.</returns>
-    public async Task<List<Event>> SearchEventsAsync(string eventName, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Event>> SearchEventsAsync(string eventName, CancellationToken cancellationToken)
     {
         var endpoint = $"searchevents.php?e={Uri.EscapeDataString(eventName)}";
         var response = await GetAsync<EventsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Events ?? new List<Event>();
+        return response?.Events ?? Array.Empty<Event>();
     }
 
     /// <summary>
@@ -188,11 +192,11 @@ public class TheSportsDBClient
     /// </summary>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>List of teams.</returns>
-    public async Task<List<Team>> GetFormulaOneTeamsAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Team>> GetFormulaOneTeamsAsync(CancellationToken cancellationToken)
     {
         var endpoint = "search_all_teams.php?l=Formula%201";
         var response = await GetAsync<TeamsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Teams ?? new List<Team>();
+        return response?.Teams ?? Array.Empty<Team>();
     }
 
     /// <summary>
@@ -214,11 +218,11 @@ public class TheSportsDBClient
     /// <param name="teamId">The team ID.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>List of drivers.</returns>
-    public async Task<List<Player>> GetTeamDriversAsync(string teamId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Player>> GetTeamDriversAsync(string teamId, CancellationToken cancellationToken)
     {
         var endpoint = $"lookup_all_players.php?id={teamId}";
         var response = await GetAsync<PlayersResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Players ?? new List<Player>();
+        return response?.Players ?? Array.Empty<Player>();
     }
 
     /// <summary>
@@ -240,10 +244,38 @@ public class TheSportsDBClient
     /// <param name="playerName">The driver name to search for.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>List of matching drivers.</returns>
-    public async Task<List<Player>> SearchPlayersAsync(string playerName, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Player>> SearchPlayersAsync(string playerName, CancellationToken cancellationToken)
     {
         var endpoint = $"searchplayers.php?p={Uri.EscapeDataString(playerName)}";
         var response = await GetAsync<PlayersResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Players ?? new List<Player>();
+        return response?.Players ?? Array.Empty<Player>();
+    }
+
+    /// <summary>
+    /// Disposes the client and releases resources.
+    /// </summary>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Disposes the client and releases resources.
+    /// </summary>
+    /// <param name="disposing">True if called from Dispose, false if called from finalizer.</param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (disposing)
+        {
+            _rateLimitSemaphore?.Dispose();
+        }
+
+        _disposed = true;
     }
 }
