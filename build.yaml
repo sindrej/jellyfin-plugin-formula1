@@ -16,4 +16,4 @@ owner: "jellyfin"
 artifacts:
 - "Jellyfin.Plugin.TheSportsDB.dll"
 changelog: >
-  Initial release with F1 metadata support
+  Bug fix release - workflow fixes and meta.json support
