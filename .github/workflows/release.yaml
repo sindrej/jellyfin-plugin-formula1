@@ -170,7 +170,7 @@ jobs:
           echo "$CHANGELOG" > release_notes.md
 
           # Add installation instructions
-          cat >> release_notes.md <<EOF
+          cat >> release_notes.md << 'INSTALLATION_NOTES'
 
 ---
 
@@ -179,15 +179,18 @@ jobs:
 ### Option 1: Install from Repository (Recommended)
 
 Add this repository to Jellyfin:
-```
-https://raw.githubusercontent.com/${REPO}/master/manifest.json
-```
+INSTALLATION_NOTES
+          echo '```' >> release_notes.md
+          echo "https://raw.githubusercontent.com/${REPO}/master/manifest.json" >> release_notes.md
+          echo '```' >> release_notes.md
+          cat >> release_notes.md << 'INSTALLATION_NOTES'
 
 Then install "TheSportsDB" from the plugin catalog.
 
 ### Option 2: Manual Installation
-
-1. Download `jellyfin-plugin-formula1_${VERSION}.zip`
+INSTALLATION_NOTES
+          echo "1. Download \`jellyfin-plugin-formula1_${VERSION}.zip\`" >> release_notes.md
+          cat >> release_notes.md << 'INSTALLATION_NOTES'
 2. Extract `Jellyfin.Plugin.TheSportsDB.dll`
 3. Copy to your Jellyfin plugins directory
 4. Restart Jellyfin
@@ -198,9 +201,8 @@ Then install "TheSportsDB" from the plugin catalog.
 - .NET 8.0 Runtime
 
 ## Documentation
-
-See the [README](https://github.com/${REPO}) for full documentation.
-EOF
+INSTALLATION_NOTES
+          echo "See the [README](https://github.com/${REPO}) for full documentation." >> release_notes.md
 
       - name: Create GitHub Release
         if: steps.check_tag.outputs.exists == 'false'
