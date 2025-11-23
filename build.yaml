@@ -12,7 +12,7 @@ description: >
   with detailed metadata including race results, team information,
   and driver data.
 category: "Metadata"
-owner: "jellyfin"
+owner: "sindrej"
 artifacts:
 - "Jellyfin.Plugin.TheSportsDB.dll"
 changelog: >
