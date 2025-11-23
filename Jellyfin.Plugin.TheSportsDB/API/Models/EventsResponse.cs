@@ -9,7 +9,7 @@ namespace Jellyfin.Plugin.TheSportsDB.API.Models;
 public class EventsResponse
 {
     /// <summary>
-    /// Gets or sets the list of events.
+    /// Gets the list of events.
     /// </summary>
     [JsonPropertyName("events")]
     public IReadOnlyList<Event>? Events { get; init; }

@@ -9,7 +9,7 @@ namespace Jellyfin.Plugin.TheSportsDB.API.Models;
 public class TeamsResponse
 {
     /// <summary>
-    /// Gets or sets the list of teams.
+    /// Gets the list of teams.
     /// </summary>
     [JsonPropertyName("teams")]
     public IReadOnlyList<Team>? Teams { get; init; }

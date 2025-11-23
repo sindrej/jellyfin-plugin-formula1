@@ -15,6 +15,8 @@ namespace Jellyfin.Plugin.TheSportsDB.Cache;
 /// </summary>
 public class MetadataCache
 {
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
+
     private readonly IApplicationPaths _applicationPaths;
     private readonly ILogger _logger;
     private readonly string _cacheDirectory;
@@ -90,7 +92,7 @@ public class MetadataCache
         try
         {
             var filePath = GetCacheFilePath(key);
-            var json = JsonSerializer.Serialize(value, new JsonSerializerOptions { WriteIndented = false });
+            var json = JsonSerializer.Serialize(value, JsonOptions);
 
             await File.WriteAllTextAsync(filePath, json, cancellationToken).ConfigureAwait(false);
             _logger.LogDebug("Cache set for key: {Key}", key);

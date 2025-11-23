@@ -171,7 +171,7 @@ public class TheSportsDBClient : IDisposable
     {
         var endpoint = $"lookupevent.php?id={eventId}";
         var response = await GetAsync<EventsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Events?.FirstOrDefault();
+        return response?.Events is { Count: > 0 } events ? events[0] : null;
     }
 
     /// <summary>
@@ -209,7 +209,7 @@ public class TheSportsDBClient : IDisposable
     {
         var endpoint = $"lookupteam.php?id={teamId}";
         var response = await GetAsync<TeamsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Teams?.FirstOrDefault();
+        return response?.Teams is { Count: > 0 } teams ? teams[0] : null;
     }
 
     /// <summary>
@@ -235,7 +235,7 @@ public class TheSportsDBClient : IDisposable
     {
         var endpoint = $"lookupplayer.php?id={playerId}";
         var response = await GetAsync<PlayersResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Players?.FirstOrDefault();
+        return response?.Players is { Count: > 0 } players ? players[0] : null;
     }
 
     /// <summary>
