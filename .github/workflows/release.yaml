@@ -59,6 +59,7 @@ jobs:
         if: steps.check_tag.outputs.exists == 'false'
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
+          REPO="${{ github.repository }}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           # Create meta.json
@@ -73,9 +74,9 @@ jobs:
   "version": "${VERSION}",
   "changelog": "",
   "targetAbi": "10.9.0.0",
-  "sourceUrl": "https://github.com/${{ github.repository }}",
+  "sourceUrl": "https://github.com/${REPO}",
   "timestamp": "${TIMESTAMP}",
-  "imageUrl": "https://raw.githubusercontent.com/${{ github.repository }}/master/images/logo.png"
+  "imageUrl": "https://raw.githubusercontent.com/${REPO}/master/images/logo.png"
 }
 EOF
 
