@@ -177,16 +177,16 @@ EOF
 ### Option 1: Install from Repository (Recommended)
 
 Add this repository to Jellyfin:
-\`\`\`
+```
 https://raw.githubusercontent.com/${REPO}/master/manifest.json
-\`\`\`
+```
 
 Then install "TheSportsDB" from the plugin catalog.
 
 ### Option 2: Manual Installation
 
-1. Download \`jellyfin-plugin-formula1_${VERSION}.zip\`
-2. Extract \`Jellyfin.Plugin.TheSportsDB.dll\`
+1. Download `jellyfin-plugin-formula1_${VERSION}.zip`
+2. Extract `Jellyfin.Plugin.TheSportsDB.dll`
 3. Copy to your Jellyfin plugins directory
 4. Restart Jellyfin
 
