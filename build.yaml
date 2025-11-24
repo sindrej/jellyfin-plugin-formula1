@@ -2,7 +2,7 @@
 # Jellyfin Plugin Metadata
 name: "TheSportsDB"
 guid: "55d3efd0-c081-4e0b-a57a-09402a4d549d"
-version: "1.3.0.0"
+version: "1.3.1.0"
 targetAbi: "10.9.0.0"
 framework: "net8.0"
 overview: "Formula 1 metadata provider using TheSportsDB API"
@@ -16,4 +16,4 @@ owner: "sindrej"
 artifacts:
 - "Jellyfin.Plugin.TheSportsDB.dll"
 changelog: >
-  Bug fix release - workflow fixes and meta.json support
+  Fixed heredoc syntax in release workflow to properly create GitHub releases
