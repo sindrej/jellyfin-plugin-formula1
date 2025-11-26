@@ -85,39 +85,72 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
 
         if (!IsEnabled())
         {
+            _logger.LogDebug("TheSportsDB plugin is disabled");
             return result;
         }
+
+        _logger.LogInformation(
+            "Getting metadata for series: Name={Name}, Year={Year}, Path={Path}",
+            info.Name,
+            info.Year,
+            info.Path);
 
         try
         {
             var seasonYear = ExtractYear(info.Name);
+            _logger.LogDebug("Extracted year from name '{Name}': {Year}", info.Name, seasonYear);
+
+            if (!seasonYear.HasValue && info.Year.HasValue)
+            {
+                _logger.LogDebug("Using Year property: {Year}", info.Year);
+                seasonYear = info.Year;
+            }
+
             if (!seasonYear.HasValue)
             {
                 // Try to get from provider ID
                 var seasonId = info.GetProviderId("Formula1Season");
                 if (!string.IsNullOrEmpty(seasonId) && int.TryParse(seasonId, out var parsedYear))
                 {
+                    _logger.LogDebug("Using year from provider ID: {Year}", parsedYear);
                     seasonYear = parsedYear;
                 }
             }
 
             if (seasonYear.HasValue)
             {
+                _logger.LogInformation("Fetching F1 season data for year: {Year}", seasonYear.Value);
                 var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
 
                 // Fetch one event from the season to verify it exists and get some metadata
                 var events = await client.GetEventsForSeasonAsync(seasonYear.Value, cancellationToken).ConfigureAwait(false);
-                var firstEvent = events.FirstOrDefault(e => e.StrEvent != null && e.StrEvent.Contains("Grand Prix", StringComparison.OrdinalIgnoreCase));
+                var grandPrixEvents = events.Where(e => e.StrEvent != null && e.StrEvent.Contains("Grand Prix", StringComparison.OrdinalIgnoreCase)).ToList();
+                var firstEvent = grandPrixEvents.FirstOrDefault();
+
+                if (events.Count == 0)
+                {
+                    _logger.LogWarning("No events found for season {Year}. The season may not be available in TheSportsDB yet.", seasonYear.Value);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Found {TotalCount} total events, {GrandPrixCount} Grand Prix races for season {Year}",
+                        events.Count,
+                        grandPrixEvents.Count,
+                        seasonYear.Value);
+                }
 
                 result.Item = new Series
                 {
                     Name = $"Formula 1 {seasonYear.Value}",
                     ProductionYear = seasonYear.Value,
-                    Overview = $"Formula 1 World Championship {seasonYear.Value} season with {events.Count(e => e.StrEvent != null && e.StrEvent.Contains("Grand Prix", StringComparison.OrdinalIgnoreCase))} races."
+                    Overview = $"Formula 1 World Championship {seasonYear.Value} season with {grandPrixEvents.Count} races."
                 };
 
                 result.Item.SetProviderId("TheSportsDB", $"formula1_{seasonYear.Value}");
                 result.Item.SetProviderId("Formula1Season", seasonYear.Value.ToString(CultureInfo.InvariantCulture));
+
+                _logger.LogDebug("Set provider IDs: TheSportsDB=formula1_{Year}, Formula1Season={Year}", seasonYear.Value, seasonYear.Value);
 
                 // Add F1 as a genre/tag
                 result.Item.Genres = FormulaOneGenres;
@@ -125,9 +158,19 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
                 if (firstEvent != null && !string.IsNullOrEmpty(firstEvent.DateEvent) && DateTime.TryParse(firstEvent.DateEvent, out var firstRaceDate))
                 {
                     result.Item.PremiereDate = firstRaceDate;
+                    _logger.LogDebug("Set premiere date to first race: {Date}", firstRaceDate);
                 }
 
                 result.HasMetadata = true;
+                _logger.LogInformation("Successfully retrieved metadata for F1 {Year} season", seasonYear.Value);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Could not extract year from series info. Name={Name}, Year={Year}, Path={Path}",
+                    info.Name,
+                    info.Year,
+                    info.Path);
             }
         }
         catch (Exception ex)
