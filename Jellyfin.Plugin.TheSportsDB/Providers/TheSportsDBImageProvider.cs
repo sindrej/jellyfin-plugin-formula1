@@ -70,8 +70,11 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     {
         if (!IsEnabled())
         {
+            _logger.LogDebug("TheSportsDB plugin is disabled");
             return Enumerable.Empty<RemoteImageInfo>();
         }
+
+        _logger.LogInformation("Getting images for item: Name={Name}, Type={Type}", item.Name, item.GetType().Name);
 
         var images = new List<RemoteImageInfo>();
 
@@ -82,44 +85,73 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
             if (item is Episode episode)
             {
                 var eventId = episode.GetProviderId("TheSportsDB");
+                _logger.LogDebug("Episode provider ID: TheSportsDB={EventId}", eventId);
+
                 if (!string.IsNullOrEmpty(eventId))
                 {
+                    _logger.LogDebug("Fetching images for episode event ID: {EventId}", eventId);
                     var raceEvent = await client.GetEventByIdAsync(eventId, cancellationToken).ConfigureAwait(false);
                     if (raceEvent != null)
                     {
                         AddEventImages(raceEvent, images);
+                        _logger.LogInformation("Added {Count} images for episode '{Name}'", images.Count, episode.Name);
                     }
+                    else
+                    {
+                        _logger.LogWarning("No event found for episode provider ID: {EventId}", eventId);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Episode '{Name}' has no TheSportsDB provider ID set", episode.Name);
                 }
             }
             else if (item is Series series)
             {
                 var seasonYear = ExtractYear(series.Name);
+                _logger.LogDebug("Extracted year from series name '{Name}': {Year}", series.Name, seasonYear);
+
                 if (!seasonYear.HasValue)
                 {
                     var seasonId = series.GetProviderId("Formula1Season");
                     if (!string.IsNullOrEmpty(seasonId) && int.TryParse(seasonId, out var parsedYear))
                     {
+                        _logger.LogDebug("Using year from provider ID: {Year}", parsedYear);
                         seasonYear = parsedYear;
                     }
                 }
 
                 if (seasonYear.HasValue)
                 {
+                    _logger.LogInformation("Fetching images for F1 season {Year}", seasonYear.Value);
+
                     // Get images from the first event of the season
                     var events = await client.GetEventsForSeasonAsync(seasonYear.Value, cancellationToken).ConfigureAwait(false);
                     var firstEvent = events.FirstOrDefault(e => !string.IsNullOrEmpty(e.StrPoster) || !string.IsNullOrEmpty(e.StrBanner));
 
                     if (firstEvent != null)
                     {
+                        _logger.LogDebug("Using images from first event: {EventName}", firstEvent.StrEvent);
                         AddEventImages(firstEvent, images);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("No events with images found for season {Year}", seasonYear.Value);
                     }
 
                     // Also get F1 team images for additional artwork
                     var teams = await client.GetFormulaOneTeamsAsync(cancellationToken).ConfigureAwait(false);
+                    _logger.LogDebug("Adding images from {TeamCount} teams", Math.Min(teams.Count, 3));
                     foreach (var team in teams.Take(3)) // Limit to top 3 teams for performance
                     {
                         AddTeamImages(team, images);
                     }
+
+                    _logger.LogInformation("Added {Count} total images for series 'F1 {Year}'", images.Count, seasonYear.Value);
+                }
+                else
+                {
+                    _logger.LogWarning("Could not extract year from series '{Name}'", series.Name);
                 }
             }
         }
@@ -128,6 +160,7 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
             _logger.LogError(ex, "Error fetching images for {ItemName}", item.Name);
         }
 
+        _logger.LogInformation("Returning {Count} images for '{ItemName}'", images.Count, item.Name);
         return images;
     }
 
