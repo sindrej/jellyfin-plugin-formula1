@@ -156,9 +156,21 @@ public class TheSportsDBClient : IDisposable
     /// <returns>List of events.</returns>
     public async Task<IReadOnlyList<Event>> GetEventsForSeasonAsync(int season, CancellationToken cancellationToken)
     {
+        _logger.LogDebug("Fetching events for F1 season: {Season}", season);
         var endpoint = $"eventsseason.php?id={FormulaOneLeagueId}&s={season}";
         var response = await GetAsync<EventsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Events ?? Array.Empty<Event>();
+        var events = response?.Events ?? Array.Empty<Event>();
+        _logger.LogDebug("Found {Count} events for season {Season}", events.Count, season);
+        if (events.Count > 0)
+        {
+            _logger.LogDebug(
+                "Sample event: {EventName} (Round {Round}, ID: {EventId})",
+                events[0].StrEvent,
+                events[0].IntRound,
+                events[0].IdEvent);
+        }
+
+        return events;
     }
 
     /// <summary>
@@ -169,9 +181,24 @@ public class TheSportsDBClient : IDisposable
     /// <returns>The event details.</returns>
     public async Task<Event?> GetEventByIdAsync(string eventId, CancellationToken cancellationToken)
     {
+        _logger.LogDebug("Fetching event by ID: {EventId}", eventId);
         var endpoint = $"lookupevent.php?id={eventId}";
         var response = await GetAsync<EventsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Events is { Count: > 0 } events ? events[0] : null;
+        var evt = response?.Events is { Count: > 0 } events ? events[0] : null;
+        if (evt != null)
+        {
+            _logger.LogDebug(
+                "Found event: {EventName} (Round {Round}, Season {Season})",
+                evt.StrEvent,
+                evt.IntRound,
+                evt.StrSeason);
+        }
+        else
+        {
+            _logger.LogWarning("No event found with ID: {EventId}", eventId);
+        }
+
+        return evt;
     }
 
     /// <summary>
@@ -182,9 +209,12 @@ public class TheSportsDBClient : IDisposable
     /// <returns>List of matching events.</returns>
     public async Task<IReadOnlyList<Event>> SearchEventsAsync(string eventName, CancellationToken cancellationToken)
     {
+        _logger.LogDebug("Searching for events with name: {EventName}", eventName);
         var endpoint = $"searchevents.php?e={Uri.EscapeDataString(eventName)}";
         var response = await GetAsync<EventsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Events ?? Array.Empty<Event>();
+        var events = response?.Events ?? Array.Empty<Event>();
+        _logger.LogDebug("Found {Count} events matching '{EventName}'", events.Count, eventName);
+        return events;
     }
 
     /// <summary>
@@ -194,9 +224,12 @@ public class TheSportsDBClient : IDisposable
     /// <returns>List of teams.</returns>
     public async Task<IReadOnlyList<Team>> GetFormulaOneTeamsAsync(CancellationToken cancellationToken)
     {
+        _logger.LogDebug("Fetching all Formula 1 teams");
         var endpoint = "search_all_teams.php?l=Formula%201";
         var response = await GetAsync<TeamsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Teams ?? Array.Empty<Team>();
+        var teams = response?.Teams ?? Array.Empty<Team>();
+        _logger.LogDebug("Found {Count} F1 teams", teams.Count);
+        return teams;
     }
 
     /// <summary>
