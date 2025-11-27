@@ -15,7 +15,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.TheSportsDB.Providers;
 
 /// <summary>
-/// Provides Formula 1 race metadata for episodes.
+/// Provides sports event metadata for episodes.
+/// Maps: Event → Episode within a League/Season structure.
 /// </summary>
 public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, EpisodeInfo>
 {
@@ -42,6 +43,35 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
     /// <inheritdoc />
     public string Name => "TheSportsDB";
 
+    /// <summary>
+    /// Parses the first year from a season string.
+    /// Examples: "2023-2024" → 2023, "2024" → 2024.
+    /// </summary>
+    /// <param name="seasonStr">The season string to parse.</param>
+    /// <returns>The parsed year if found, null otherwise.</returns>
+    private int? ParseSeasonYear(string? seasonStr)
+    {
+        if (string.IsNullOrEmpty(seasonStr))
+        {
+            return null;
+        }
+
+        var separators = new[] { '-', '/', ' ' };
+        var parts = seasonStr.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var part in parts)
+        {
+            if (int.TryParse(part.Trim(), out var year) && year >= 1900 && year <= 2100)
+            {
+                _logger.LogDebug("Parsed season year {Year} from '{SeasonStr}'", year, seasonStr);
+                return year;
+            }
+        }
+
+        _logger.LogWarning("Could not parse year from season string: {SeasonStr}", seasonStr);
+        return null;
+    }
+
     /// <inheritdoc />
     public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(EpisodeInfo searchInfo, CancellationToken cancellationToken)
     {
@@ -56,13 +86,16 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
         {
             var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
 
-            // Try to extract season year from series name or parent index
-            var seasonYear = ExtractSeasonYear(searchInfo);
-            if (seasonYear.HasValue)
-            {
-                var events = await client.GetEventsForSeasonAsync(seasonYear.Value, cancellationToken).ConfigureAwait(false);
+            // Get league ID from series provider IDs
+            var leagueId = searchInfo.SeriesProviderIds?.GetValueOrDefault("TheSportsDB");
+            var seasonYear = searchInfo.ParentIndexNumber;
 
-                foreach (var evt in events.Where(e => e.StrEvent != null && e.StrEvent.Contains("Grand Prix", StringComparison.OrdinalIgnoreCase)))
+            if (!string.IsNullOrEmpty(leagueId) && seasonYear.HasValue)
+            {
+                _logger.LogDebug("Searching for events: League {LeagueId}, Season {Season}", leagueId, seasonYear);
+                var events = await client.GetEventsForSeasonAsync(leagueId, seasonYear.Value, cancellationToken).ConfigureAwait(false);
+
+                foreach (var evt in events)
                 {
                     var result = new RemoteSearchResult
                     {
@@ -93,6 +126,7 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
             else if (!string.IsNullOrEmpty(searchInfo.Name))
             {
                 // Fallback: search by name
+                _logger.LogDebug("Searching events by name: {Name}", searchInfo.Name);
                 var events = await client.SearchEventsAsync(searchInfo.Name, cancellationToken).ConfigureAwait(false);
 
                 foreach (var evt in events.Where(e => e.StrSeason != null))
@@ -118,10 +152,14 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
                     results.Add(result);
                 }
             }
+            else
+            {
+                _logger.LogWarning("Cannot search for episodes without league ID and season or event name");
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching for F1 race metadata");
+            _logger.LogError(ex, "Error searching for event metadata");
         }
 
         return results;
@@ -160,41 +198,48 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
             }
             else
             {
-                // Try to find the event by season and episode number
-                var seasonYear = ExtractSeasonYear(info);
+                // Try to find the event by league, season, and episode number
+                var leagueId = info.SeriesProviderIds?.GetValueOrDefault("TheSportsDB");
+                var seasonYear = info.ParentIndexNumber;
                 var roundNumber = info.IndexNumber ?? ExtractRoundNumber(info.Name);
 
-                _logger.LogDebug("Season year: {Year}, Round number: {Round}", seasonYear, roundNumber);
+                _logger.LogDebug("League ID: {LeagueId}, Season: {Season}, Round: {Round}", leagueId, seasonYear, roundNumber);
 
-                if (seasonYear.HasValue && roundNumber.HasValue)
+                if (!string.IsNullOrEmpty(leagueId) && seasonYear.HasValue && roundNumber.HasValue)
                 {
-                    _logger.LogInformation("Searching for race: Season {Year}, Round {Round}", seasonYear.Value, roundNumber.Value);
-                    var events = await client.GetEventsForSeasonAsync(seasonYear.Value, cancellationToken).ConfigureAwait(false);
+                    _logger.LogInformation(
+                        "Searching for event: League {LeagueId}, Season {Season}, Round {Round}",
+                        leagueId,
+                        seasonYear.Value,
+                        roundNumber.Value);
+                    var events = await client.GetEventsForSeasonAsync(leagueId, seasonYear.Value, cancellationToken).ConfigureAwait(false);
                     raceEvent = events.FirstOrDefault(e =>
                         !string.IsNullOrEmpty(e.IntRound) &&
                         int.TryParse(e.IntRound, out var round) &&
-                        round == roundNumber.Value &&
-                        e.StrEvent != null &&
-                        e.StrEvent.Contains("Grand Prix", StringComparison.OrdinalIgnoreCase));
+                        round == roundNumber.Value);
 
                     if (raceEvent != null)
                     {
-                        _logger.LogInformation("Found race by round number: {EventName}", raceEvent.StrEvent);
+                        _logger.LogInformation("Found event by round number: {EventName}", raceEvent.StrEvent);
                     }
                     else
                     {
-                        _logger.LogWarning("No race found for Season {Year}, Round {Round}", seasonYear.Value, roundNumber.Value);
+                        _logger.LogWarning(
+                            "No event found for League {LeagueId}, Season {Season}, Round {Round}",
+                            leagueId,
+                            seasonYear.Value,
+                            roundNumber.Value);
                     }
                 }
 
                 // Fallback: Try fuzzy matching by event name
-                if (raceEvent == null && seasonYear.HasValue && !string.IsNullOrEmpty(info.Name))
+                if (raceEvent == null && !string.IsNullOrEmpty(leagueId) && seasonYear.HasValue && !string.IsNullOrEmpty(info.Name))
                 {
                     var eventName = ExtractEventName(info.Name);
                     if (!string.IsNullOrEmpty(eventName))
                     {
                         _logger.LogInformation("Trying fuzzy match by event name: '{EventName}'", eventName);
-                        var events = await client.GetEventsForSeasonAsync(seasonYear.Value, cancellationToken).ConfigureAwait(false);
+                        var events = await client.GetEventsForSeasonAsync(leagueId, seasonYear.Value, cancellationToken).ConfigureAwait(false);
 
                         // Try exact match first
                         raceEvent = events.FirstOrDefault(e =>
@@ -203,11 +248,15 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
 
                         if (raceEvent != null)
                         {
-                            _logger.LogInformation("Found race by fuzzy name match: {EventName}", raceEvent.StrEvent);
+                            _logger.LogInformation("Found event by fuzzy name match: {EventName}", raceEvent.StrEvent);
                         }
                         else
                         {
-                            _logger.LogWarning("No race found matching event name '{EventName}' in season {Year}", eventName, seasonYear.Value);
+                            _logger.LogWarning(
+                                "No event found matching event name '{EventName}' in league {LeagueId}, season {Season}",
+                                eventName,
+                                leagueId,
+                                seasonYear.Value);
                         }
                     }
                 }
@@ -216,7 +265,7 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
             if (raceEvent != null)
             {
                 _logger.LogInformation(
-                    "Setting metadata for race: {EventName} (Season {Season}, Round {Round})",
+                    "Setting metadata for event: {EventName} (Season {Season}, Round {Round})",
                     raceEvent.StrEvent,
                     raceEvent.StrSeason,
                     raceEvent.IntRound);
@@ -253,19 +302,19 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
                 }
 
                 result.HasMetadata = true;
-                _logger.LogInformation("Successfully retrieved metadata for race: {EventName}", raceEvent.StrEvent);
+                _logger.LogInformation("Successfully retrieved metadata for event: {EventName}", raceEvent.StrEvent);
             }
             else
             {
                 _logger.LogWarning(
-                    "Could not find race event for episode: Name={Name}, IndexNumber={IndexNumber}",
+                    "Could not find event for episode: Name={Name}, IndexNumber={IndexNumber}",
                     info.Name,
                     info.IndexNumber);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching F1 race metadata for {Name}", info.Name);
+            _logger.LogError(ex, "Error fetching event metadata for {Name}", info.Name);
         }
 
         return result;
@@ -294,28 +343,20 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
     /// <returns>The season year if found, null otherwise.</returns>
     private int? ExtractSeasonYear(EpisodeInfo info)
     {
-        // First try parent index number (season number)
-        if (info.ParentIndexNumber.HasValue && info.ParentIndexNumber.Value >= 1950 && info.ParentIndexNumber.Value <= 2100)
+        // First try parent index number (season number = year)
+        if (info.ParentIndexNumber.HasValue && info.ParentIndexNumber.Value >= 1900 && info.ParentIndexNumber.Value <= 2100)
         {
             _logger.LogDebug("Extracted season year from ParentIndexNumber: {Year}", info.ParentIndexNumber.Value);
             return info.ParentIndexNumber.Value;
         }
 
-        // Try to extract year from series provider IDs
-        var seasonId = info.GetProviderId("Formula1Season");
-        if (!string.IsNullOrEmpty(seasonId) && int.TryParse(seasonId, out var yearFromId))
-        {
-            _logger.LogDebug("Extracted season year from Formula1Season provider ID: {Year}", yearFromId);
-            return yearFromId;
-        }
-
-        // Try to extract year from episode name
+        // Try to extract year from episode name as fallback
         if (!string.IsNullOrEmpty(info.Name))
         {
             var parts = info.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             foreach (var part in parts)
             {
-                if (int.TryParse(part, out var year) && year >= 1950 && year <= 2100)
+                if (int.TryParse(part, out var year) && year >= 1900 && year <= 2100)
                 {
                     _logger.LogDebug("Extracted season year from episode Name '{Name}': {Year}", info.Name, year);
                     return year;

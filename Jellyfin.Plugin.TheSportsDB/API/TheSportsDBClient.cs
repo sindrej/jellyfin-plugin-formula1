@@ -17,7 +17,6 @@ namespace Jellyfin.Plugin.TheSportsDB.API;
 public class TheSportsDBClient : IDisposable
 {
     private const string BaseUrl = "https://www.thesportsdb.com/api/v1/json";
-    private const int FormulaOneLeagueId = 4370;
 
     private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
     {
@@ -149,18 +148,19 @@ public class TheSportsDBClient : IDisposable
     }
 
     /// <summary>
-    /// Gets all events (races) for a specific Formula 1 season.
+    /// Gets all events for a specific league and season.
     /// </summary>
+    /// <param name="leagueId">The league ID.</param>
     /// <param name="season">The season year (e.g., 2024).</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>List of events.</returns>
-    public async Task<IReadOnlyList<Event>> GetEventsForSeasonAsync(int season, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Event>> GetEventsForSeasonAsync(string leagueId, int season, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Fetching events for F1 season: {Season}", season);
-        var endpoint = $"eventsseason.php?id={FormulaOneLeagueId}&s={season}";
+        _logger.LogDebug("Fetching events for league {LeagueId}, season: {Season}", leagueId, season);
+        var endpoint = $"eventsseason.php?id={leagueId}&s={season}";
         var response = await GetAsync<EventsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
         var events = response?.Events ?? Array.Empty<Event>();
-        _logger.LogDebug("Found {Count} events for season {Season}", events.Count, season);
+        _logger.LogDebug("Found {Count} events for league {LeagueId}, season {Season}", events.Count, leagueId, season);
         if (events.Count > 0)
         {
             _logger.LogDebug(
@@ -202,6 +202,61 @@ public class TheSportsDBClient : IDisposable
     }
 
     /// <summary>
+    /// Gets all available leagues from TheSportsDB.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>List of leagues.</returns>
+    public async Task<IReadOnlyList<League>> GetAllLeaguesAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("Fetching all leagues");
+        var endpoint = "all_leagues.php";
+        var response = await GetAsync<LeaguesResponse>(endpoint, cancellationToken).ConfigureAwait(false);
+        var leagues = response?.Leagues ?? Array.Empty<League>();
+        _logger.LogDebug("Found {Count} leagues", leagues.Count);
+        return leagues;
+    }
+
+    /// <summary>
+    /// Gets detailed information about a specific league.
+    /// </summary>
+    /// <param name="leagueId">The league ID.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The league details.</returns>
+    public async Task<League?> GetLeagueByIdAsync(string leagueId, CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("Fetching league details for ID: {LeagueId}", leagueId);
+        var endpoint = $"lookupleague.php?id={leagueId}";
+        var response = await GetAsync<LeagueDetailsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
+        var league = response?.Leagues is { Count: > 0 } leagues ? leagues[0] : null;
+        if (league != null)
+        {
+            _logger.LogDebug("Found league: {LeagueName} (ID: {LeagueId})", league.StrLeague, league.IdLeague);
+        }
+        else
+        {
+            _logger.LogWarning("No league found with ID: {LeagueId}", leagueId);
+        }
+
+        return league;
+    }
+
+    /// <summary>
+    /// Gets all seasons for a specific league.
+    /// </summary>
+    /// <param name="leagueId">The league ID.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>List of seasons.</returns>
+    public async Task<IReadOnlyList<Season>> GetLeagueSeasonsAsync(string leagueId, CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("Fetching seasons for league ID: {LeagueId}", leagueId);
+        var endpoint = $"search_all_seasons.php?id={leagueId}";
+        var response = await GetAsync<SeasonsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
+        var seasons = response?.Seasons ?? Array.Empty<Season>();
+        _logger.LogDebug("Found {Count} seasons for league {LeagueId}", seasons.Count, leagueId);
+        return seasons;
+    }
+
+    /// <summary>
     /// Searches for events by name.
     /// </summary>
     /// <param name="eventName">The event name to search for.</param>
@@ -215,73 +270,6 @@ public class TheSportsDBClient : IDisposable
         var events = response?.Events ?? Array.Empty<Event>();
         _logger.LogDebug("Found {Count} events matching '{EventName}'", events.Count, eventName);
         return events;
-    }
-
-    /// <summary>
-    /// Gets all Formula 1 teams.
-    /// </summary>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>List of teams.</returns>
-    public async Task<IReadOnlyList<Team>> GetFormulaOneTeamsAsync(CancellationToken cancellationToken)
-    {
-        _logger.LogDebug("Fetching all Formula 1 teams");
-        var endpoint = "search_all_teams.php?l=Formula%201";
-        var response = await GetAsync<TeamsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        var teams = response?.Teams ?? Array.Empty<Team>();
-        _logger.LogDebug("Found {Count} F1 teams", teams.Count);
-        return teams;
-    }
-
-    /// <summary>
-    /// Gets a specific team by ID.
-    /// </summary>
-    /// <param name="teamId">The team ID.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The team details.</returns>
-    public async Task<Team?> GetTeamByIdAsync(string teamId, CancellationToken cancellationToken)
-    {
-        var endpoint = $"lookupteam.php?id={teamId}";
-        var response = await GetAsync<TeamsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Teams is { Count: > 0 } teams ? teams[0] : null;
-    }
-
-    /// <summary>
-    /// Gets all drivers for a specific team.
-    /// </summary>
-    /// <param name="teamId">The team ID.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>List of drivers.</returns>
-    public async Task<IReadOnlyList<Player>> GetTeamDriversAsync(string teamId, CancellationToken cancellationToken)
-    {
-        var endpoint = $"lookup_all_players.php?id={teamId}";
-        var response = await GetAsync<PlayersResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Players ?? Array.Empty<Player>();
-    }
-
-    /// <summary>
-    /// Gets a specific driver by ID.
-    /// </summary>
-    /// <param name="playerId">The driver ID.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The driver details.</returns>
-    public async Task<Player?> GetPlayerByIdAsync(string playerId, CancellationToken cancellationToken)
-    {
-        var endpoint = $"lookupplayer.php?id={playerId}";
-        var response = await GetAsync<PlayersResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Players is { Count: > 0 } players ? players[0] : null;
-    }
-
-    /// <summary>
-    /// Searches for drivers by name.
-    /// </summary>
-    /// <param name="playerName">The driver name to search for.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>List of matching drivers.</returns>
-    public async Task<IReadOnlyList<Player>> SearchPlayersAsync(string playerName, CancellationToken cancellationToken)
-    {
-        var endpoint = $"searchplayers.php?p={Uri.EscapeDataString(playerName)}";
-        var response = await GetAsync<PlayersResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        return response?.Players ?? Array.Empty<Player>();
     }
 
     /// <summary>

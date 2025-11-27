@@ -15,12 +15,12 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.TheSportsDB.Providers;
 
 /// <summary>
-/// Provides Formula 1 season metadata for series.
+/// Provides sports league metadata for series.
+/// Maps: League → TV Show (e.g., "Formula 1" becomes a TV show).
 /// </summary>
 public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesInfo>
 {
-    private static readonly string[] FormulaOneGenres = { "Formula 1", "Motorsport", "Racing" };
-    private static readonly char[] NameSeparators = { ' ', '-', '_' };
+    private static readonly char[] NameSeparators = { ' ', '-', '_', ',' };
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TheSportsDBSeriesProvider> _logger;
@@ -53,26 +53,39 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
 
         try
         {
-            // Try to extract year from series name (e.g., "Formula 1 2024" or "F1 2024")
-            var year = ExtractYear(searchInfo.Name);
-            if (year.HasValue)
+            var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
+
+            _logger.LogInformation("Searching for leagues matching: {Name}", searchInfo.Name);
+            var allLeagues = await client.GetAllLeaguesAsync(cancellationToken).ConfigureAwait(false);
+
+            foreach (var league in allLeagues)
             {
-                var result = new RemoteSearchResult
+                if (IsLeagueMatch(searchInfo.Name, league))
                 {
-                    Name = $"Formula 1 {year.Value}",
-                    SearchProviderName = Name,
-                    ProductionYear = year.Value
-                };
+                    var result = new RemoteSearchResult
+                    {
+                        Name = league.StrLeague,
+                        SearchProviderName = Name,
+                        Overview = league.StrDescriptionEN,
+                        ImageUrl = league.StrBadge ?? league.StrLogo ?? league.StrPoster
+                    };
 
-                result.SetProviderId("TheSportsDB", $"formula1_{year.Value}");
-                result.SetProviderId("Formula1Season", year.Value.ToString(CultureInfo.InvariantCulture));
+                    if (!string.IsNullOrEmpty(league.IdLeague))
+                    {
+                        result.SetProviderId("TheSportsDB", league.IdLeague);
+                    }
 
-                results.Add(result);
+                    results.Add(result);
+
+                    _logger.LogDebug("Found matching league: {LeagueName} (ID: {LeagueId})", league.StrLeague, league.IdLeague);
+                }
             }
+
+            _logger.LogInformation("Found {Count} matching leagues for '{Name}'", results.Count, searchInfo.Name);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching for F1 season metadata");
+            _logger.LogError(ex, "Error searching for league metadata");
         }
 
         return results;
@@ -97,85 +110,60 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
 
         try
         {
-            var seasonYear = ExtractYear(info.Name);
-            _logger.LogDebug("Extracted year from name '{Name}': {Year}", info.Name, seasonYear);
+            var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
 
-            if (!seasonYear.HasValue && info.Year.HasValue)
+            var leagueId = info.GetProviderId("TheSportsDB");
+            API.Models.League? league = null;
+
+            if (!string.IsNullOrEmpty(leagueId))
             {
-                _logger.LogDebug("Using Year property: {Year}", info.Year);
-                seasonYear = info.Year;
-            }
-
-            if (!seasonYear.HasValue)
-            {
-                // Try to get from provider ID
-                var seasonId = info.GetProviderId("Formula1Season");
-                if (!string.IsNullOrEmpty(seasonId) && int.TryParse(seasonId, out var parsedYear))
-                {
-                    _logger.LogDebug("Using year from provider ID: {Year}", parsedYear);
-                    seasonYear = parsedYear;
-                }
-            }
-
-            if (seasonYear.HasValue)
-            {
-                _logger.LogInformation("Fetching F1 season data for year: {Year}", seasonYear.Value);
-                var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
-
-                // Fetch one event from the season to verify it exists and get some metadata
-                var events = await client.GetEventsForSeasonAsync(seasonYear.Value, cancellationToken).ConfigureAwait(false);
-                var grandPrixEvents = events.Where(e => e.StrEvent != null && e.StrEvent.Contains("Grand Prix", StringComparison.OrdinalIgnoreCase)).ToList();
-                var firstEvent = grandPrixEvents.FirstOrDefault();
-
-                if (events.Count == 0)
-                {
-                    _logger.LogWarning("No events found for season {Year}. The season may not be available in TheSportsDB yet.", seasonYear.Value);
-                }
-                else
-                {
-                    _logger.LogInformation(
-                        "Found {TotalCount} total events, {GrandPrixCount} Grand Prix races for season {Year}",
-                        events.Count,
-                        grandPrixEvents.Count,
-                        seasonYear.Value);
-                }
-
-                result.Item = new Series
-                {
-                    Name = $"Formula 1 {seasonYear.Value}",
-                    ProductionYear = seasonYear.Value,
-                    Overview = $"Formula 1 World Championship {seasonYear.Value} season with {grandPrixEvents.Count} races."
-                };
-
-                result.Item.SetProviderId("TheSportsDB", $"formula1_{seasonYear.Value}");
-                result.Item.SetProviderId("Formula1Season", seasonYear.Value.ToString(CultureInfo.InvariantCulture));
-
-                _logger.LogDebug("Set provider IDs: TheSportsDB=formula1_{Year}, Formula1Season={Year}", seasonYear.Value, seasonYear.Value);
-
-                // Add F1 as a genre/tag
-                result.Item.Genres = FormulaOneGenres;
-
-                if (firstEvent != null && !string.IsNullOrEmpty(firstEvent.DateEvent) && DateTime.TryParse(firstEvent.DateEvent, out var firstRaceDate))
-                {
-                    result.Item.PremiereDate = firstRaceDate;
-                    _logger.LogDebug("Set premiere date to first race: {Date}", firstRaceDate);
-                }
-
-                result.HasMetadata = true;
-                _logger.LogInformation("Successfully retrieved metadata for F1 {Year} season", seasonYear.Value);
+                _logger.LogDebug("Fetching league by provider ID: {LeagueId}", leagueId);
+                league = await client.GetLeagueByIdAsync(leagueId, cancellationToken).ConfigureAwait(false);
             }
             else
             {
-                _logger.LogWarning(
-                    "Could not extract year from series info. Name={Name}, Year={Year}, Path={Path}",
-                    info.Name,
-                    info.Year,
-                    info.Path);
+                _logger.LogDebug("Searching for league by name: {Name}", info.Name);
+                var allLeagues = await client.GetAllLeaguesAsync(cancellationToken).ConfigureAwait(false);
+                league = allLeagues.FirstOrDefault(l => IsLeagueMatch(info.Name, l));
+
+                if (league != null)
+                {
+                    _logger.LogInformation("Found league: {LeagueName} (ID: {LeagueId})", league.StrLeague, league.IdLeague);
+                }
+                else
+                {
+                    _logger.LogWarning("No matching league found for: {Name}", info.Name);
+                    return result;
+                }
+            }
+
+            if (league != null && !string.IsNullOrEmpty(league.IdLeague))
+            {
+                result.Item = new Series
+                {
+                    Name = league.StrLeague,
+                    Overview = league.StrDescriptionEN
+                };
+
+                result.Item.SetProviderId("TheSportsDB", league.IdLeague);
+
+                // Set genres based on sport type
+                if (!string.IsNullOrEmpty(league.StrSport))
+                {
+                    result.Item.Genres = new[] { league.StrSport, "Sports" };
+                }
+                else
+                {
+                    result.Item.Genres = new[] { "Sports" };
+                }
+
+                result.HasMetadata = true;
+                _logger.LogInformation("Successfully retrieved metadata for league: {LeagueName}", league.StrLeague);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching F1 season metadata for {Name}", info.Name);
+            _logger.LogError(ex, "Error fetching league metadata for {Name}", info.Name);
         }
 
         return result;
@@ -198,26 +186,47 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
     }
 
     /// <summary>
-    /// Extracts a year from a string (e.g., "Formula 1 2024" returns 2024).
+    /// Checks if a search name matches a league.
     /// </summary>
-    /// <param name="name">The string to extract from.</param>
-    /// <returns>The year if found, null otherwise.</returns>
-    private int? ExtractYear(string? name)
+    /// <param name="searchName">The search name from the user.</param>
+    /// <param name="league">The league to match against.</param>
+    /// <returns>True if the names match, false otherwise.</returns>
+    private bool IsLeagueMatch(string? searchName, API.Models.League league)
     {
-        if (string.IsNullOrEmpty(name))
+        if (string.IsNullOrEmpty(searchName) || string.IsNullOrEmpty(league.StrLeague))
         {
-            return null;
+            return false;
         }
 
-        var parts = name.Split(NameSeparators, StringSplitOptions.RemoveEmptyEntries);
-        foreach (var part in parts)
+        var normalizedSearch = searchName.ToLowerInvariant().Trim();
+        var normalizedLeague = league.StrLeague.ToLowerInvariant().Trim();
+
+        // Exact match
+        if (normalizedSearch == normalizedLeague)
         {
-            if (int.TryParse(part, out var year) && year >= 1950 && year <= 2100)
+            return true;
+        }
+
+        // Check alternate names
+        if (!string.IsNullOrEmpty(league.StrLeagueAlternate))
+        {
+            var alternates = league.StrLeagueAlternate.Split(NameSeparators, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var alternate in alternates)
             {
-                return year;
+                var normalizedAlternate = alternate.ToLowerInvariant().Trim();
+                if (normalizedSearch == normalizedAlternate)
+                {
+                    return true;
+                }
             }
         }
 
-        return null;
+        // Partial match (contains)
+        if (normalizedSearch.Contains(normalizedLeague, StringComparison.Ordinal) || normalizedLeague.Contains(normalizedSearch, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return false;
     }
 }

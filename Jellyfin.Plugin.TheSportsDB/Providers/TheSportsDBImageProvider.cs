@@ -16,13 +16,12 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.TheSportsDB.Providers;
 
 /// <summary>
-/// Provides images for Formula 1 content.
+/// Provides images for sports content (leagues and events).
 /// </summary>
 public class TheSportsDBImageProvider : IRemoteImageProvider
 {
     private static readonly ImageType[] EpisodeImageTypes = { ImageType.Primary, ImageType.Thumb, ImageType.Backdrop };
-    private static readonly ImageType[] SeriesImageTypes = { ImageType.Primary, ImageType.Banner, ImageType.Backdrop };
-    private static readonly char[] NameSeparators = { ' ', '-', '_' };
+    private static readonly ImageType[] SeriesImageTypes = { ImageType.Primary, ImageType.Logo, ImageType.Banner, ImageType.Backdrop };
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TheSportsDBImageProvider> _logger;
@@ -108,50 +107,29 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
             }
             else if (item is Series series)
             {
-                var seasonYear = ExtractYear(series.Name);
-                _logger.LogDebug("Extracted year from series name '{Name}': {Year}", series.Name, seasonYear);
+                var leagueId = series.GetProviderId("TheSportsDB");
+                _logger.LogDebug("Series provider ID: TheSportsDB={LeagueId}", leagueId);
 
-                if (!seasonYear.HasValue)
+                if (!string.IsNullOrEmpty(leagueId))
                 {
-                    var seasonId = series.GetProviderId("Formula1Season");
-                    if (!string.IsNullOrEmpty(seasonId) && int.TryParse(seasonId, out var parsedYear))
+                    _logger.LogInformation("Fetching images for league {LeagueId}", leagueId);
+
+                    var league = await client.GetLeagueByIdAsync(leagueId, cancellationToken).ConfigureAwait(false);
+
+                    if (league != null)
                     {
-                        _logger.LogDebug("Using year from provider ID: {Year}", parsedYear);
-                        seasonYear = parsedYear;
-                    }
-                }
-
-                if (seasonYear.HasValue)
-                {
-                    _logger.LogInformation("Fetching images for F1 season {Year}", seasonYear.Value);
-
-                    // Get images from the first event of the season
-                    var events = await client.GetEventsForSeasonAsync(seasonYear.Value, cancellationToken).ConfigureAwait(false);
-                    var firstEvent = events.FirstOrDefault(e => !string.IsNullOrEmpty(e.StrPoster) || !string.IsNullOrEmpty(e.StrBanner));
-
-                    if (firstEvent != null)
-                    {
-                        _logger.LogDebug("Using images from first event: {EventName}", firstEvent.StrEvent);
-                        AddEventImages(firstEvent, images);
+                        _logger.LogDebug("Adding images for league: {LeagueName}", league.StrLeague);
+                        AddLeagueImages(league, images);
+                        _logger.LogInformation("Added {Count} images for series '{SeriesName}'", images.Count, series.Name);
                     }
                     else
                     {
-                        _logger.LogWarning("No events with images found for season {Year}", seasonYear.Value);
+                        _logger.LogWarning("No league found with ID: {LeagueId}", leagueId);
                     }
-
-                    // Also get F1 team images for additional artwork
-                    var teams = await client.GetFormulaOneTeamsAsync(cancellationToken).ConfigureAwait(false);
-                    _logger.LogDebug("Adding images from {TeamCount} teams", Math.Min(teams.Count, 3));
-                    foreach (var team in teams.Take(3)) // Limit to top 3 teams for performance
-                    {
-                        AddTeamImages(team, images);
-                    }
-
-                    _logger.LogInformation("Added {Count} total images for series 'F1 {Year}'", images.Count, seasonYear.Value);
                 }
                 else
                 {
-                    _logger.LogWarning("Could not extract year from series '{Name}'", series.Name);
+                    _logger.LogWarning("Series '{Name}' has no TheSportsDB provider ID set", series.Name);
                 }
             }
         }
@@ -220,37 +198,57 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     }
 
     /// <summary>
-    /// Adds team images to the collection.
+    /// Adds league images to the collection.
     /// </summary>
-    /// <param name="team">The team.</param>
+    /// <param name="league">The league.</param>
     /// <param name="images">The images collection.</param>
-    private void AddTeamImages(API.Models.Team team, List<RemoteImageInfo> images)
+    private void AddLeagueImages(API.Models.League league, List<RemoteImageInfo> images)
     {
-        if (!string.IsNullOrEmpty(team.StrBadge))
+        if (!string.IsNullOrEmpty(league.StrBadge))
         {
             images.Add(new RemoteImageInfo
             {
-                Url = team.StrBadge,
+                Url = league.StrBadge,
                 Type = ImageType.Primary,
                 ProviderName = Name
             });
         }
 
-        if (!string.IsNullOrEmpty(team.StrBanner))
+        if (!string.IsNullOrEmpty(league.StrLogo))
         {
             images.Add(new RemoteImageInfo
             {
-                Url = team.StrBanner,
+                Url = league.StrLogo,
+                Type = ImageType.Logo,
+                ProviderName = Name
+            });
+        }
+
+        if (!string.IsNullOrEmpty(league.StrBanner))
+        {
+            images.Add(new RemoteImageInfo
+            {
+                Url = league.StrBanner,
                 Type = ImageType.Banner,
                 ProviderName = Name
             });
         }
 
+        if (!string.IsNullOrEmpty(league.StrPoster))
+        {
+            images.Add(new RemoteImageInfo
+            {
+                Url = league.StrPoster,
+                Type = ImageType.Primary,
+                ProviderName = Name
+            });
+        }
+
         // Add fanart images
-        AddFanartImage(team.StrFanart1, images);
-        AddFanartImage(team.StrFanart2, images);
-        AddFanartImage(team.StrFanart3, images);
-        AddFanartImage(team.StrFanart4, images);
+        AddFanartImage(league.StrFanart1, images);
+        AddFanartImage(league.StrFanart2, images);
+        AddFanartImage(league.StrFanart3, images);
+        AddFanartImage(league.StrFanart4, images);
     }
 
     /// <summary>
@@ -278,29 +276,5 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     private bool IsEnabled()
     {
         return Plugin.Instance?.Configuration?.EnablePlugin ?? false;
-    }
-
-    /// <summary>
-    /// Extracts a year from a string.
-    /// </summary>
-    /// <param name="name">The string to extract from.</param>
-    /// <returns>The year if found, null otherwise.</returns>
-    private int? ExtractYear(string? name)
-    {
-        if (string.IsNullOrEmpty(name))
-        {
-            return null;
-        }
-
-        var parts = name.Split(NameSeparators, StringSplitOptions.RemoveEmptyEntries);
-        foreach (var part in parts)
-        {
-            if (int.TryParse(part, out var year) && year >= 1950 && year <= 2100)
-            {
-                return year;
-            }
-        }
-
-        return null;
     }
 }

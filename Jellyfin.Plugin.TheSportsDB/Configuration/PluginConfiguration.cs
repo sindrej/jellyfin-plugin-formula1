@@ -13,7 +13,7 @@ public class PluginConfiguration : BasePluginConfiguration
     public PluginConfiguration()
     {
         // Default to free tier API key
-        ApiKey = "3";
+        ApiKey = "8235861265252";
         CacheDurationDays = 7;
         EnablePlugin = true;
         MaxRequestsPerMinute = 30;
