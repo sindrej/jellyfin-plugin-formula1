@@ -1,8 +1,8 @@
+namespace Jellyfin.Plugin.Tsdb.Logger;
+
 using System;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
-
-namespace Jellyfin.Plugin.TheSportsDB.Logger;
 
 /// <summary>
 /// A logger that prefixes all log messages with [TheSportsDB].

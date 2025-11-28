@@ -1,14 +1,14 @@
+namespace Jellyfin.Plugin.Tsdb.API;
+
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Jellyfin.Plugin.TheSportsDB.API.Models;
-using Jellyfin.Plugin.TheSportsDB.Logger;
+using Jellyfin.Plugin.Tsdb.API.Models;
+using Jellyfin.Plugin.Tsdb.Logger;
 using Microsoft.Extensions.Logging;
-
-namespace Jellyfin.Plugin.TheSportsDB.API;
 
 /// <summary>
 /// Client for interacting with TheSportsDB API.
@@ -42,12 +42,12 @@ public class TheSportsDBClient : IDisposable
     /// <summary>
     /// Gets the API key from plugin configuration.
     /// </summary>
-    private static string ApiKey => Plugin.Instance?.Configuration?.ApiKey ?? "123";
+    private static string ApiKey => TsdbPlugin.Instance?.Configuration?.ApiKey ?? "123";
 
     /// <summary>
     /// Gets the maximum requests per minute from plugin configuration.
     /// </summary>
-    private static int MaxRequestsPerMinute => Plugin.Instance?.Configuration?.MaxRequestsPerMinute ?? 30;
+    private static int MaxRequestsPerMinute => TsdbPlugin.Instance?.Configuration?.MaxRequestsPerMinute ?? 30;
 
     /// <summary>
     /// Enforces rate limiting before making API requests.
@@ -153,19 +153,19 @@ public class TheSportsDBClient : IDisposable
     /// <param name="season">The season year (e.g., 2024).</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>List of events.</returns>
-    public async Task<IReadOnlyList<Event>> GetEventsForSeasonAsync(string leagueId, int season, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Round>> GetEventsForSeasonAsync(string leagueId, int season, CancellationToken cancellationToken)
     {
         _logger.LogDebug("Fetching events for league {LeagueId}, season: {Season}", leagueId, season);
         var endpoint = $"eventsseason.php?id={leagueId}&s={season}";
         var response = await GetAsync<EventsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        var events = response?.Events ?? Array.Empty<Event>();
+        var events = response?.Events ?? Array.Empty<Round>();
         _logger.LogDebug("Found {Count} events for league {LeagueId}, season {Season}", events.Count, leagueId, season);
         if (events.Count > 0)
         {
             _logger.LogDebug(
                 "Sample event: {EventName} (Round {Round}, ID: {EventId})",
                 events[0].Name,
-                events[0].Round,
+                events[0].RoundNo,
                 events[0].Id);
         }
 
@@ -178,7 +178,7 @@ public class TheSportsDBClient : IDisposable
     /// <param name="eventId">The event ID.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The event details.</returns>
-    public async Task<Event?> GetEventByIdAsync(string eventId, CancellationToken cancellationToken)
+    public async Task<Round?> GetEventByIdAsync(string eventId, CancellationToken cancellationToken)
     {
         _logger.LogDebug("Fetching event by ID: {EventId}", eventId);
         var endpoint = $"lookupevent.php?id={eventId}";
@@ -189,7 +189,7 @@ public class TheSportsDBClient : IDisposable
             _logger.LogDebug(
                 "Found event: {EventName} (Round {Round}, Season {Season})",
                 evt.Name,
-                evt.Round,
+                evt.RoundNo,
                 evt.Season);
         }
         else
@@ -261,12 +261,12 @@ public class TheSportsDBClient : IDisposable
     /// <param name="eventName">The event name to search for.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>List of matching events.</returns>
-    public async Task<IReadOnlyList<Event>> SearchEventsAsync(string eventName, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Round>> SearchEventsAsync(string eventName, CancellationToken cancellationToken)
     {
         _logger.LogDebug("Searching for events with name: {EventName}", eventName);
         var endpoint = $"searchevents.php?e={Uri.EscapeDataString(eventName)}";
         var response = await GetAsync<EventsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
-        var events = response?.Events ?? Array.Empty<Event>();
+        var events = response?.Events ?? Array.Empty<Round>();
         _logger.LogDebug("Found {Count} events matching '{EventName}'", events.Count, eventName);
         return events;
     }

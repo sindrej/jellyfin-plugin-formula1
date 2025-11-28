@@ -1,3 +1,5 @@
+namespace Jellyfin.Plugin.Tsdb.Providers;
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,39 +7,37 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Jellyfin.Plugin.TheSportsDB.API;
-using Jellyfin.Plugin.TheSportsDB.Logger;
+using Jellyfin.Plugin.Tsdb.API;
+using Jellyfin.Plugin.Tsdb.Logger;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Providers;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.TheSportsDB.Providers;
-
 /// <summary>
 /// Provides sports event metadata for episodes.
 /// Maps: Event → Episode within a League/Season structure.
 /// </summary>
-public partial class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, EpisodeInfo>
+public partial class TsdbEpisodeProvider : IRemoteMetadataProvider<Episode, EpisodeInfo>
 {
     private static readonly Regex _roundNumberRegex = MyRegex();
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly PrefixedLogger<TheSportsDBEpisodeProvider> _logger;
+    private readonly PrefixedLogger<TsdbEpisodeProvider> _logger;
     private readonly ILoggerFactory _loggerFactory;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="TheSportsDBEpisodeProvider"/> class.
+    /// Initializes a new instance of the <see cref="TsdbEpisodeProvider"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
     /// <param name="loggerFactory">The logger factory.</param>
-    public TheSportsDBEpisodeProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
+    public TsdbEpisodeProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
     {
         _httpClientFactory = httpClientFactory;
         _loggerFactory = loggerFactory;
-        var baseLogger = loggerFactory.CreateLogger<TheSportsDBEpisodeProvider>();
-        _logger = new PrefixedLogger<TheSportsDBEpisodeProvider>(baseLogger);
+        var baseLogger = loggerFactory.CreateLogger<TsdbEpisodeProvider>();
+        _logger = new PrefixedLogger<TsdbEpisodeProvider>(baseLogger);
     }
 
     /// <inheritdoc />
@@ -86,7 +86,7 @@ public partial class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episod
                         result.PremiereDate = eventDate;
                     }
 
-                    if (!string.IsNullOrEmpty(evt.Round) && int.TryParse(evt.Round, out var roundNumber))
+                    if (!string.IsNullOrEmpty(evt.RoundNo) && int.TryParse(evt.RoundNo, out var roundNumber))
                     {
                         result.IndexNumber = roundNumber;
                     }
@@ -159,7 +159,7 @@ public partial class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episod
             var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
             var eventId = info.GetProviderId("TheSportsDB");
 
-            API.Models.Event? raceEvent = null;
+            API.Models.Round? raceEvent = null;
 
             if (!string.IsNullOrEmpty(eventId))
             {
@@ -190,8 +190,8 @@ public partial class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episod
                         cancellationToken).ConfigureAwait(false);
 
                     raceEvent = events.FirstOrDefault(e =>
-                        !string.IsNullOrEmpty(e.Round) &&
-                        int.TryParse(e.Round, out var round) &&
+                        !string.IsNullOrEmpty(e.RoundNo) &&
+                        int.TryParse(e.RoundNo, out var round) &&
                         round == roundNumber.Value);
 
                     if (raceEvent != null)
@@ -244,7 +244,7 @@ public partial class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episod
                     "Setting metadata for event: {EventName} (Season {Season}, Round {Round})",
                     raceEvent.Name,
                     raceEvent.Season,
-                    raceEvent.Round);
+                    raceEvent.RoundNo);
 
                 result.Item = new Episode
                 {
@@ -265,7 +265,7 @@ public partial class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episod
                     _logger.LogDebug("Set premiere date: {Date}", eventDate);
                 }
 
-                if (!string.IsNullOrEmpty(raceEvent.Round) && int.TryParse(raceEvent.Round, out var round))
+                if (!string.IsNullOrEmpty(raceEvent.RoundNo) && int.TryParse(raceEvent.RoundNo, out var round))
                 {
                     result.Item.IndexNumber = round;
                     _logger.LogDebug("Set round number (IndexNumber): {Round}", round);
@@ -309,7 +309,7 @@ public partial class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episod
     /// <returns>True if enabled, false otherwise.</returns>
     private bool IsEnabled()
     {
-        return Plugin.Instance?.Configuration?.EnablePlugin ?? false;
+        return TsdbPlugin.Instance?.Configuration?.EnablePlugin ?? false;
     }
 
     /// <summary>

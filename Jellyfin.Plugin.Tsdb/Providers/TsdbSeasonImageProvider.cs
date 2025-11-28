@@ -1,11 +1,13 @@
+namespace Jellyfin.Plugin.Tsdb.Providers;
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using Jellyfin.Plugin.TheSportsDB.API;
-using Jellyfin.Plugin.TheSportsDB.Logger;
+using Jellyfin.Plugin.Tsdb.API;
+using Jellyfin.Plugin.Tsdb.Logger;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Providers;
@@ -13,31 +15,28 @@ using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Providers;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.TheSportsDB.Providers;
-
 /// <summary>
-/// Provides images for sports content (leagues and events).
+/// Provides images for sports seasons.
 /// </summary>
-public class TheSportsDBImageProvider : IRemoteImageProvider
+public class TsdbSeasonImageProvider : IRemoteImageProvider
 {
-    private static readonly ImageType[] _episodeImageTypes = [ImageType.Primary, ImageType.Thumb, ImageType.Backdrop];
-    private static readonly ImageType[] _seriesImageTypes = [ImageType.Primary, ImageType.Logo, ImageType.Banner, ImageType.Backdrop];
+    private static readonly ImageType[] _seasonImageTypes = [ImageType.Primary, ImageType.Banner, ImageType.Backdrop];
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly PrefixedLogger<TheSportsDBImageProvider> _logger;
+    private readonly PrefixedLogger<TsdbSeasonImageProvider> _logger;
     private readonly ILoggerFactory _loggerFactory;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="TheSportsDBImageProvider"/> class.
+    /// Initializes a new instance of the <see cref="TsdbSeasonImageProvider"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
     /// <param name="loggerFactory">The logger factory.</param>
-    public TheSportsDBImageProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
+    public TsdbSeasonImageProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
     {
         _httpClientFactory = httpClientFactory;
         _loggerFactory = loggerFactory;
-        var baseLogger = loggerFactory.CreateLogger<TheSportsDBImageProvider>();
-        _logger = new PrefixedLogger<TheSportsDBImageProvider>(baseLogger);
+        var baseLogger = loggerFactory.CreateLogger<TsdbSeasonImageProvider>();
+        _logger = new PrefixedLogger<TsdbSeasonImageProvider>(baseLogger);
     }
 
     /// <inheritdoc />
@@ -46,18 +45,13 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     /// <inheritdoc />
     public bool Supports(BaseItem item)
     {
-        return item is Episode or Series;
+        return item is Season;
     }
 
     /// <inheritdoc />
     public IEnumerable<ImageType> GetSupportedImages(BaseItem item)
     {
-        return item switch
-        {
-            Episode => _episodeImageTypes,
-            Series => _seriesImageTypes,
-            _ => []
-        };
+        return item is Season ? _seasonImageTypes : [];
     }
 
     /// <inheritdoc />
@@ -77,46 +71,24 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
         {
             var client = new TheSportsDBClient(_httpClientFactory, _loggerFactory.CreateLogger<TheSportsDBClient>());
 
-            if (item is Episode episode)
+            if (item is Season season)
             {
-                var eventId = episode.GetProviderId("TheSportsDB");
-                _logger.LogDebug("Episode provider ID: TheSportsDB={EventId}", eventId);
-
-                if (!string.IsNullOrEmpty(eventId))
-                {
-                    _logger.LogDebug("Fetching images for episode event ID: {EventId}", eventId);
-                    var raceEvent = await client.GetEventByIdAsync(eventId, cancellationToken).ConfigureAwait(false);
-                    if (raceEvent != null)
-                    {
-                        AddEventImages(raceEvent, images);
-                        _logger.LogInformation("Added {Count} images for episode '{Name}'", images.Count, episode.Name);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("No event found for episode provider ID: {EventId}", eventId);
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning("Episode '{Name}' has no TheSportsDB provider ID set", episode.Name);
-                }
-            }
-            else if (item is Series series)
-            {
-                var leagueId = series.GetProviderId("TheSportsDB");
-                _logger.LogDebug("Series provider ID: TheSportsDB={LeagueId}", leagueId);
+                // Get league ID from parent series
+                var leagueId = season.Series?.GetProviderId("TheSportsDB");
+                _logger.LogDebug("Season's series provider ID: TheSportsDB={LeagueId}", leagueId);
 
                 if (!string.IsNullOrEmpty(leagueId))
                 {
-                    _logger.LogInformation("Fetching images for league {LeagueId}", leagueId);
+                    _logger.LogInformation("Fetching images for season {SeasonName} of league {LeagueId}", season.Name, leagueId);
 
+                    // For seasons, we can use league images as fallback
                     var league = await client.GetLeagueByIdAsync(leagueId, cancellationToken).ConfigureAwait(false);
 
                     if (league != null)
                     {
-                        _logger.LogDebug("Adding images for league: {LeagueName}", league.Name);
+                        _logger.LogDebug("Adding league images for season: {SeasonName}", season.Name);
                         AddLeagueImages(league, images);
-                        _logger.LogInformation("Added {Count} images for series '{SeriesName}'", images.Count, series.Name);
+                        _logger.LogInformation("Added {Count} images for season '{SeasonName}'", images.Count, season.Name);
                     }
                     else
                     {
@@ -125,7 +97,7 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
                 }
                 else
                 {
-                    _logger.LogWarning("Series '{Name}' has no TheSportsDB provider ID set", series.Name);
+                    _logger.LogWarning("Season '{Name}' has no parent series with TheSportsDB provider ID set", season.Name);
                 }
             }
         }
@@ -143,54 +115,6 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     {
         var httpClient = _httpClientFactory.CreateClient();
         return httpClient.GetAsync(url, cancellationToken);
-    }
-
-    /// <summary>
-    /// Adds event images to the collection.
-    /// </summary>
-    /// <param name="raceEvent">The race event.</param>
-    /// <param name="images">The images collection.</param>
-    private void AddEventImages(API.Models.Event raceEvent, List<RemoteImageInfo> images)
-    {
-        if (!string.IsNullOrEmpty(raceEvent.Poster))
-        {
-            images.Add(new RemoteImageInfo
-            {
-                Url = raceEvent.Poster,
-                Type = ImageType.Primary,
-                ProviderName = Name
-            });
-        }
-
-        if (!string.IsNullOrEmpty(raceEvent.Thumb))
-        {
-            images.Add(new RemoteImageInfo
-            {
-                Url = raceEvent.Thumb,
-                Type = ImageType.Thumb,
-                ProviderName = Name
-            });
-        }
-
-        if (!string.IsNullOrEmpty(raceEvent.Banner))
-        {
-            images.Add(new RemoteImageInfo
-            {
-                Url = raceEvent.Banner,
-                Type = ImageType.Banner,
-                ProviderName = Name
-            });
-        }
-
-        if (!string.IsNullOrEmpty(raceEvent.Fanart))
-        {
-            images.Add(new RemoteImageInfo
-            {
-                Url = raceEvent.Fanart,
-                Type = ImageType.Backdrop,
-                ProviderName = Name
-            });
-        }
     }
 
     /// <summary>
@@ -271,6 +195,6 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     /// <returns>True if enabled, false otherwise.</returns>
     private bool IsEnabled()
     {
-        return Plugin.Instance?.Configuration?.EnablePlugin ?? false;
+        return TsdbPlugin.Instance?.Configuration?.EnablePlugin ?? false;
     }
 }

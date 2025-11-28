@@ -1,42 +1,42 @@
+namespace Jellyfin.Plugin.Tsdb.Providers;
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using Jellyfin.Plugin.TheSportsDB.API;
-using Jellyfin.Plugin.TheSportsDB.Logger;
+using Jellyfin.Plugin.Tsdb.API;
+using Jellyfin.Plugin.Tsdb.Logger;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Providers;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.TheSportsDB.Providers;
-
 /// <summary>
 /// Provides sports league metadata for series.
 /// Maps: League → TV Show (e.g., "Formula 1" becomes a TV show).
 /// </summary>
-public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesInfo>
+public class TsdbSeriesProvider : IRemoteMetadataProvider<Series, SeriesInfo>
 {
     private static readonly char[] _nameSeparators = [' ', '-', '_', ','];
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly PrefixedLogger<TheSportsDBSeriesProvider> _logger;
+    private readonly PrefixedLogger<TsdbSeriesProvider> _logger;
     private readonly ILoggerFactory _loggerFactory;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="TheSportsDBSeriesProvider"/> class.
+    /// Initializes a new instance of the <see cref="TsdbSeriesProvider"/> class.
     /// </summary>
     /// <param name="httpClientFactory">The HTTP client factory.</param>
     /// <param name="loggerFactory">The logger factory.</param>
-    public TheSportsDBSeriesProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
+    public TsdbSeriesProvider(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
     {
         _httpClientFactory = httpClientFactory;
         _loggerFactory = loggerFactory;
-        var baseLogger = loggerFactory.CreateLogger<TheSportsDBSeriesProvider>();
-        _logger = new PrefixedLogger<TheSportsDBSeriesProvider>(baseLogger);
+        var baseLogger = loggerFactory.CreateLogger<TsdbSeriesProvider>();
+        _logger = new PrefixedLogger<TsdbSeriesProvider>(baseLogger);
     }
 
     /// <inheritdoc />
@@ -145,20 +145,13 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
                 result.Item = new Series
                 {
                     Name = league.Name,
-                    Overview = league.DescriptionEng
+                    Overview = league.DescriptionEng,
                 };
 
                 result.Item.SetProviderId("TheSportsDB", league.Id);
 
                 // Set genres based on sport type
-                if (!string.IsNullOrEmpty(league.Sport))
-                {
-                    result.Item.Genres = new[] { league.Sport, "Sports" };
-                }
-                else
-                {
-                    result.Item.Genres = new[] { "Sports" };
-                }
+                result.Item.Genres = !string.IsNullOrEmpty(league.Sport) ? [league.Sport, "Sports"] : ["Sports"];
 
                 result.HasMetadata = true;
                 _logger.LogInformation("Successfully retrieved metadata for league: {LeagueName}", league.Name);
@@ -175,7 +168,7 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
     /// <inheritdoc />
     public Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)
     {
-        var httpClient = _httpClientFactory.CreateClient();
+        var httpClient = this._httpClientFactory.CreateClient();
         return httpClient.GetAsync(url, cancellationToken);
     }
 
@@ -185,7 +178,7 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
     /// <returns>True if enabled, false otherwise.</returns>
     private bool IsEnabled()
     {
-        return Plugin.Instance?.Configuration?.EnablePlugin ?? false;
+        return TsdbPlugin.Instance?.Configuration?.EnablePlugin ?? false;
     }
 
     /// <summary>
@@ -194,7 +187,7 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
     /// <param name="searchName">The search name from the user.</param>
     /// <param name="league">The league to match against.</param>
     /// <returns>True if the names match, false otherwise.</returns>
-    private bool IsLeagueMatch(string? searchName, API.Models.League league)
+    private static bool IsLeagueMatch(string? searchName, API.Models.League league)
     {
         if (string.IsNullOrEmpty(searchName) || string.IsNullOrEmpty(league.Name))
         {

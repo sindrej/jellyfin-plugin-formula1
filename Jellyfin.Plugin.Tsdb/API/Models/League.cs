@@ -1,6 +1,6 @@
-using System.Text.Json.Serialization;
+namespace Jellyfin.Plugin.Tsdb.API.Models;
 
-namespace Jellyfin.Plugin.TheSportsDB.API.Models;
+using System.Text.Json.Serialization;
 
 /// <summary>
 /// Represents a sports league from TheSportsDB API.

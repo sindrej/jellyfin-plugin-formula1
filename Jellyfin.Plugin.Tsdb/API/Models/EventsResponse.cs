@@ -1,7 +1,7 @@
+namespace Jellyfin.Plugin.Tsdb.API.Models;
+
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-
-namespace Jellyfin.Plugin.TheSportsDB.API.Models;
 
 /// <summary>
 /// Response wrapper for events from TheSportsDB API.
@@ -12,5 +12,5 @@ public class EventsResponse
     /// Gets the list of events.
     /// </summary>
     [JsonPropertyName("events")]
-    public IReadOnlyList<Event>? Events { get; init; }
+    public IReadOnlyList<Round>? Events { get; init; }
 }

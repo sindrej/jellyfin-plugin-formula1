@@ -1,11 +1,11 @@
-using System.Text.Json.Serialization;
+namespace Jellyfin.Plugin.Tsdb.API.Models;
 
-namespace Jellyfin.Plugin.TheSportsDB.API.Models;
+using System.Text.Json.Serialization;
 
 /// <summary>
 /// Represents a motorsport event (Grand Prix) from TheSportsDB API.
 /// </summary>
-public class Event
+public class Round
 {
     /// <summary>
     /// Gets or sets the event ID.
@@ -95,7 +95,7 @@ public class Event
     /// Gets or sets the round number in the season.
     /// </summary>
     [JsonPropertyName("intRound")]
-    public string? Round { get; set; }
+    public string? RoundNo { get; set; }
 
     /// <summary>
     /// Gets or sets the away team score.

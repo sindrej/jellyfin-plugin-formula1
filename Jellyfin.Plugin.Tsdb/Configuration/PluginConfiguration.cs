@@ -1,6 +1,6 @@
-using MediaBrowser.Model.Plugins;
+namespace Jellyfin.Plugin.Tsdb.Configuration;
 
-namespace Jellyfin.Plugin.TheSportsDB.Configuration;
+using MediaBrowser.Model.Plugins;
 
 /// <summary>
 /// Plugin configuration.

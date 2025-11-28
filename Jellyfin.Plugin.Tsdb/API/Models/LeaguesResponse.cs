@@ -1,7 +1,7 @@
+namespace Jellyfin.Plugin.Tsdb.API.Models;
+
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-
-namespace Jellyfin.Plugin.TheSportsDB.API.Models;
 
 /// <summary>
 /// Response wrapper for all leagues API endpoint.
