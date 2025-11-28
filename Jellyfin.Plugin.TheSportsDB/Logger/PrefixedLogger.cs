@@ -18,55 +18,23 @@ public sealed class PrefixedLogger<T> : ILogger<T>
     /// <summary>
     /// Initializes a new instance of the <see cref="PrefixedLogger{T}"/> class.
     /// </summary>
-    /// <param name="logger">
-    /// The underlying <see cref="ILogger{T}"/> instance to wrap.
-    /// </param>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown if <paramref name="logger"/> is <c>null</c>.
-    /// </exception>
+    /// <param name="logger">The underlying <see cref="ILogger{T}"/> instance to wrap.</param>
     public PrefixedLogger(ILogger<T> logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
         _logger = logger;
     }
 
-    /// <summary>
-    /// Begins a logical operation scope.
-    /// </summary>
-    /// <typeparam name="TState">The type of the state to associate with the scope.</typeparam>
-    /// <param name="state">The identifier for the scope.</param>
-    /// <returns>
-    /// An <see cref="IDisposable"/> that ends the logical operation scope on dispose.
-    /// </returns>
+    /// <inheritdoc />
     IDisposable ILogger.BeginScope<TState>(TState state)
     {
-        return _logger.BeginScope(state)!; // Suppress nullable warning
+        return _logger.BeginScope(state)!;
     }
 
-    /// <summary>
-    /// Checks if the given log level is enabled.
-    /// </summary>
-    /// <param name="logLevel">Level to check.</param>
-    /// <returns>
-    /// <c>true</c> if enabled; otherwise, <c>false</c>.
-    /// </returns>
-    bool ILogger.IsEnabled(LogLevel logLevel)
-    {
-        return _logger.IsEnabled(logLevel);
-    }
+    /// <inheritdoc />
+    bool ILogger.IsEnabled(LogLevel logLevel) => _logger.IsEnabled(logLevel);
 
-    /// <summary>
-    /// Writes a log entry with the specified level, event ID, state, and exception.
-    /// The message is prefixed with a fixed string for identification.
-    /// </summary>
-    /// <typeparam name="TState">The type of the state object.</typeparam>
-    /// <param name="logLevel">Entry will be written on this level.</param>
-    /// <param name="eventId">The event ID associated with the log.</param>
-    /// <param name="state">The entry to be written. Can also an object.</param>
-    /// <param name="exception">The exception related to this entry (if any).</param>
-    /// <param name="formatter">
-    /// Function to create a <see cref="string"/> message of the <paramref name="state"/> and <paramref name="exception"/>.
-    /// </param>
+    /// <inheritdoc />
     void ILogger.Log<TState>(
         LogLevel logLevel,
         EventId eventId,
@@ -75,12 +43,72 @@ public sealed class PrefixedLogger<T> : ILogger<T>
         Func<TState, Exception?, string> formatter)
     {
         ArgumentNullException.ThrowIfNull(formatter);
-
-        _logger.Log(
-            logLevel,
-            eventId,
-            state,
-            exception,
-            (s, e) => $"{Prefix} {formatter(s, e)}");
+        _logger.Log(logLevel, eventId, state, exception, (s, e) => $"{Prefix} {formatter(s, e)}");
     }
+
+    /// <summary>
+    /// Logs a trace message with prefix.
+    /// </summary>
+    /// <param name="message">The log message template.</param>
+    /// <param name="args">Optional arguments for message formatting.</param>
+    public void LogTrace(string message, params object[] args) =>
+        _logger.LogTrace("{Prefix} {Message}", Prefix, message);
+
+    /// <summary>
+    /// Logs a debug message with prefix.
+    /// </summary>
+    /// <param name="message">The log message template.</param>
+    /// <param name="args">Optional arguments for message formatting.</param>
+    public void LogDebug(string message, params object[] args) =>
+        _logger.LogDebug("{Prefix} {Message}", Prefix, message);
+
+    /// <summary>
+    /// Logs an informational message with prefix.
+    /// </summary>
+    /// <param name="message">The log message template.</param>
+    /// <param name="args">Optional arguments for message formatting.</param>
+    public void LogInformation(string message, params object[] args) =>
+        _logger.LogInformation("{Prefix} {Message}", Prefix, message);
+
+    /// <summary>
+    /// Logs a warning message with prefix.
+    /// </summary>
+    /// <param name="message">The log message template.</param>
+    /// <param name="args">Optional arguments for message formatting.</param>
+    public void LogWarning(string message, params object[] args) =>
+        _logger.LogWarning("{Prefix} {Message}", Prefix, message);
+
+    /// <summary>
+    /// Logs an error message with prefix.
+    /// </summary>
+    /// <param name="message">The log message template.</param>
+    /// <param name="args">Optional arguments for message formatting.</param>
+    public void LogError(string message, params object[] args) =>
+        _logger.LogError("{Prefix} {Message}", Prefix, message);
+
+    /// <summary>
+    /// Logs an error message with exception and prefix.
+    /// </summary>
+    /// <param name="exception">The exception to log.</param>
+    /// <param name="message">The log message template.</param>
+    /// <param name="args">Optional arguments for message formatting.</param>
+    public void LogError(Exception exception, string message, params object[] args) =>
+        _logger.LogError(exception, "{Prefix} {Message}", Prefix, message);
+
+    /// <summary>
+    /// Logs a critical message with prefix.
+    /// </summary>
+    /// <param name="message">The log message template.</param>
+    /// <param name="args">Optional arguments for message formatting.</param>
+    public void LogCritical(string message, params object[] args) =>
+        _logger.LogCritical("{Prefix} {Message}", Prefix, message);
+
+    /// <summary>
+    /// Logs a critical message with exception and prefix.
+    /// </summary>
+    /// <param name="exception">The exception to log.</param>
+    /// <param name="message">The log message template.</param>
+    /// <param name="args">Optional arguments for message formatting.</param>
+    public void LogCritical(Exception exception, string message, params object[] args) =>
+        _logger.LogCritical(exception, "{Prefix} {Message}", Prefix, message);
 }
