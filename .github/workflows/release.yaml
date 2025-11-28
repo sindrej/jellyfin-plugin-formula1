@@ -51,7 +51,7 @@ jobs:
       - name: Build and publish plugin
         if: steps.check_tag.outputs.exists == 'false'
         run: |
-          dotnet publish Jellyfin.Plugin.TheSportsDB/Jellyfin.Plugin.TheSportsDB.csproj \
+          dotnet publish Jellyfin.Plugin.TheSportsDB/Jellyfin.Plugin.Tsdb.csproj \
             --configuration Release \
             --output publish/
 

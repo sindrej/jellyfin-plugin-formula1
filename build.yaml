@@ -11,6 +11,6 @@ description: >
 category: "Metadata"
 owner: "sindrej"
 artifacts:
-- "Jellyfin.Plugin.TheSportsDB.dll"
+- "Jellyfin.Plugin.Tsdb.dll"
 changelog: >
   Fixed heredoc syntax in release workflow to properly create GitHub releases
