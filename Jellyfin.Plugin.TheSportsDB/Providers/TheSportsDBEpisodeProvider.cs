@@ -24,7 +24,7 @@ public partial class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episod
     private static readonly Regex _roundNumberRegex = MyRegex();
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<TheSportsDBEpisodeProvider> _logger;
+    private readonly PrefixedLogger<TheSportsDBEpisodeProvider> _logger;
     private readonly ILoggerFactory _loggerFactory;
 
     /// <summary>

@@ -1,18 +1,15 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+using System;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.TheSportsDB.Logger;
 
 /// <summary>
-/// A logger wrapper that prefixes all log messages with a fixed string.
-/// This is useful for distinguishing logs from a specific component or plugin.
+/// A logger that prefixes all log messages with [TheSportsDB].
 /// </summary>
-/// <typeparam name="T">
-/// The type whose name is used for the logger category.
-/// </typeparam>
-public sealed class PrefixedLogger<T> : ILogger<T>
+/// <typeparam name="T">The type whose name is used for the logger category.</typeparam>
+[SuppressMessage("LoggingGenerator", "CA2254", Justification = "Template variation is intentional for prefix")]
+public sealed class PrefixedLogger<T>
 {
     private const string Prefix = "[TheSportsDB]";
     private readonly ILogger<T> _logger;
@@ -20,82 +17,92 @@ public sealed class PrefixedLogger<T> : ILogger<T>
     /// <summary>
     /// Initializes a new instance of the <see cref="PrefixedLogger{T}"/> class.
     /// </summary>
-    /// <param name="logger">The underlying <see cref="ILogger{T}"/> instance to wrap.</param>
+    /// <param name="logger">The underlying logger.</param>
     public PrefixedLogger(ILogger<T> logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
         _logger = logger;
     }
 
-    /// <inheritdoc />
-    IDisposable ILogger.BeginScope<TState>(TState state)
+    /// <summary>
+    /// Logs a trace message.
+    /// </summary>
+    /// <param name="message">The message template.</param>
+    /// <param name="args">The message arguments.</param>
+    public void LogTrace(string message, params object?[] args)
     {
-        return _logger.BeginScope(state)!;
+        _logger.LogTrace($"{Prefix} {message}", args);
     }
 
-    /// <inheritdoc />
-    bool ILogger.IsEnabled(LogLevel logLevel) => _logger.IsEnabled(logLevel);
-
-    /// <inheritdoc />
-    void ILogger.Log<TState>(
-        LogLevel logLevel,
-        EventId eventId,
-        TState state,
-        Exception? exception,
-        Func<TState, Exception?, string> formatter)
+    /// <summary>
+    /// Logs a debug message.
+    /// </summary>
+    /// <param name="message">The message template.</param>
+    /// <param name="args">The message arguments.</param>
+    public void LogDebug(string message, params object?[] args)
     {
-        if (!_logger.IsEnabled(logLevel))
-        {
-            return;
-        }
-
-        ArgumentNullException.ThrowIfNull(formatter);
-
-        // Create a prefixed state wrapper that implements IReadOnlyList for structured logging
-        var prefixedState = new PrefixedState<TState>(state, formatter, Prefix);
-
-        _logger.Log(
-            logLevel,
-            eventId,
-            prefixedState,
-            exception,
-            PrefixedState<TState>.Format);
+        _logger.LogDebug($"{Prefix} {message}", args);
     }
 
-    private sealed class PrefixedState<TState> : IReadOnlyList<KeyValuePair<string, object?>>
+    /// <summary>
+    /// Logs an information message.
+    /// </summary>
+    /// <param name="message">The message template.</param>
+    /// <param name="args">The message arguments.</param>
+    public void LogInformation(string message, params object?[] args)
     {
-        private readonly TState _state;
-        private readonly Func<TState, Exception?, string> _formatter;
-        private readonly string _prefix;
-        private readonly IReadOnlyList<KeyValuePair<string, object?>>? _stateList;
+        _logger.LogInformation($"{Prefix} {message}", args);
+    }
 
-        public PrefixedState(TState state, Func<TState, Exception?, string> formatter, string prefix)
-        {
-            _state = state;
-            _formatter = formatter;
-            _prefix = prefix;
-            _stateList = state as IReadOnlyList<KeyValuePair<string, object?>>;
-        }
+    /// <summary>
+    /// Logs a warning message.
+    /// </summary>
+    /// <param name="message">The message template.</param>
+    /// <param name="args">The message arguments.</param>
+    public void LogWarning(string message, params object?[] args)
+    {
+        _logger.LogWarning($"{Prefix} {message}", args);
+    }
 
-        // Implement IReadOnlyList to support structured logging
-        public int Count => _stateList?.Count ?? 0;
+    /// <summary>
+    /// Logs an error message.
+    /// </summary>
+    /// <param name="message">The message template.</param>
+    /// <param name="args">The message arguments.</param>
+    public void LogError(string message, params object?[] args)
+    {
+        _logger.LogError($"{Prefix} {message}", args);
+    }
 
-        public KeyValuePair<string, object?> this[int index] => _stateList?[index] ?? default;
+    /// <summary>
+    /// Logs an error message with exception.
+    /// </summary>
+    /// <param name="exception">The exception.</param>
+    /// <param name="message">The message template.</param>
+    /// <param name="args">The message arguments.</param>
+    public void LogError(Exception exception, string message, params object?[] args)
+    {
+        _logger.LogError(exception, $"{Prefix} {message}", args);
+    }
 
-        public static string Format(PrefixedState<TState> state, Exception? exception)
-        {
-            var formatted = state._formatter(state._state, exception);
-            return $"{state._prefix} {formatted}";
-        }
+    /// <summary>
+    /// Logs a critical message.
+    /// </summary>
+    /// <param name="message">The message template.</param>
+    /// <param name="args">The message arguments.</param>
+    public void LogCritical(string message, params object?[] args)
+    {
+        _logger.LogCritical($"{Prefix} {message}", args);
+    }
 
-        public override string ToString() => Format(this, null);
-
-        public IEnumerator<KeyValuePair<string, object?>> GetEnumerator()
-        {
-            return _stateList?.GetEnumerator() ??
-                   ((IEnumerable<KeyValuePair<string, object?>>)Array.Empty<KeyValuePair<string, object?>>()).GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    /// <summary>
+    /// Logs a critical message with exception.
+    /// </summary>
+    /// <param name="exception">The exception.</param>
+    /// <param name="message">The message template.</param>
+    /// <param name="args">The message arguments.</param>
+    public void LogCritical(Exception exception, string message, params object?[] args)
+    {
+        _logger.LogCritical(exception, $"{Prefix} {message}", args);
     }
 }

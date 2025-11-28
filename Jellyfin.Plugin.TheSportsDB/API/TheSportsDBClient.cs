@@ -23,7 +23,7 @@ public class TheSportsDBClient : IDisposable
     };
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<TheSportsDBClient> _logger;
+    private readonly PrefixedLogger<TheSportsDBClient> _logger;
     private readonly SemaphoreSlim _rateLimitSemaphore = new(1, 1);
     private readonly Queue<DateTime> _requestTimestamps = new();
     private bool _disposed;

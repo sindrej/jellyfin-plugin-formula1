@@ -23,7 +23,7 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
     private static readonly char[] _nameSeparators = [' ', '-', '_', ','];
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<TheSportsDBSeriesProvider> _logger;
+    private readonly PrefixedLogger<TheSportsDBSeriesProvider> _logger;
     private readonly ILoggerFactory _loggerFactory;
 
     /// <summary>

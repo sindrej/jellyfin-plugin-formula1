@@ -24,7 +24,7 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     private static readonly ImageType[] _seriesImageTypes = [ImageType.Primary, ImageType.Logo, ImageType.Banner, ImageType.Backdrop];
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<TheSportsDBImageProvider> _logger;
+    private readonly PrefixedLogger<TheSportsDBImageProvider> _logger;
     private readonly ILoggerFactory _loggerFactory;
 
     /// <summary>
