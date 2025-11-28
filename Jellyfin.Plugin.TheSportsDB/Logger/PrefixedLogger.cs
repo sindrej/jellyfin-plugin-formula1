@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.TheSportsDB.Logger;
@@ -42,80 +44,58 @@ public sealed class PrefixedLogger<T> : ILogger<T>
         Exception? exception,
         Func<TState, Exception?, string> formatter)
     {
+        if (!_logger.IsEnabled(logLevel))
+        {
+            return;
+        }
+
         ArgumentNullException.ThrowIfNull(formatter);
 
-        // Create a wrapper formatter that adds the prefix
+        // Create a prefixed state wrapper that implements IReadOnlyList for structured logging
+        var prefixedState = new PrefixedState<TState>(state, formatter, Prefix);
+
         _logger.Log(
             logLevel,
             eventId,
-            state,
+            prefixedState,
             exception,
-            (s, e) => $"{Prefix} {formatter(s, e)}");
+            PrefixedState<TState>.Format);
     }
 
-    /// <summary>
-    /// Logs a trace message with prefix.
-    /// </summary>
-    /// <param name="message">The log message template.</param>
-    /// <param name="args">Optional arguments for message formatting.</param>
-    public void LogTrace(string message, params object[] args) =>
-        _logger.LogTrace($"{Prefix} {message}", args);
+    private sealed class PrefixedState<TState> : IReadOnlyList<KeyValuePair<string, object?>>
+    {
+        private readonly TState _state;
+        private readonly Func<TState, Exception?, string> _formatter;
+        private readonly string _prefix;
+        private readonly IReadOnlyList<KeyValuePair<string, object?>>? _stateList;
 
-    /// <summary>
-    /// Logs a debug message with prefix.
-    /// </summary>
-    /// <param name="message">The log message template.</param>
-    /// <param name="args">Optional arguments for message formatting.</param>
-    public void LogDebug(string message, params object[] args) =>
-        _logger.LogDebug($"{Prefix} {message}", args);
+        public PrefixedState(TState state, Func<TState, Exception?, string> formatter, string prefix)
+        {
+            _state = state;
+            _formatter = formatter;
+            _prefix = prefix;
+            _stateList = state as IReadOnlyList<KeyValuePair<string, object?>>;
+        }
 
-    /// <summary>
-    /// Logs an informational message with prefix.
-    /// </summary>
-    /// <param name="message">The log message template.</param>
-    /// <param name="args">Optional arguments for message formatting.</param>
-    public void LogInformation(string message, params object[] args) =>
-        _logger.LogInformation($"{Prefix} {message}", args);
+        // Implement IReadOnlyList to support structured logging
+        public int Count => _stateList?.Count ?? 0;
 
-    /// <summary>
-    /// Logs a warning message with prefix.
-    /// </summary>
-    /// <param name="message">The log message template.</param>
-    /// <param name="args">Optional arguments for message formatting.</param>
-    public void LogWarning(string message, params object[] args) =>
-        _logger.LogWarning($"{Prefix} {message}", args);
+        public KeyValuePair<string, object?> this[int index] => _stateList?[index] ?? default;
 
-    /// <summary>
-    /// Logs an error message with prefix.
-    /// </summary>
-    /// <param name="message">The log message template.</param>
-    /// <param name="args">Optional arguments for message formatting.</param>
-    public void LogError(string message, params object[] args) =>
-        _logger.LogError($"{Prefix} {message}", args);
+        public static string Format(PrefixedState<TState> state, Exception? exception)
+        {
+            var formatted = state._formatter(state._state, exception);
+            return $"{state._prefix} {formatted}";
+        }
 
-    /// <summary>
-    /// Logs an error message with exception and prefix.
-    /// </summary>
-    /// <param name="exception">The exception to log.</param>
-    /// <param name="message">The log message template.</param>
-    /// <param name="args">Optional arguments for message formatting.</param>
-    public void LogError(Exception exception, string message, params object[] args) =>
-        _logger.LogError(exception, $"{Prefix} {message}", args);
+        public override string ToString() => Format(this, null);
 
-    /// <summary>
-    /// Logs a critical message with prefix.
-    /// </summary>
-    /// <param name="message">The log message template.</param>
-    /// <param name="args">Optional arguments for message formatting.</param>
-    public void LogCritical(string message, params object[] args) =>
-        _logger.LogCritical($"{Prefix} {message}", args);
+        public IEnumerator<KeyValuePair<string, object?>> GetEnumerator()
+        {
+            return _stateList?.GetEnumerator() ??
+                   ((IEnumerable<KeyValuePair<string, object?>>)Array.Empty<KeyValuePair<string, object?>>()).GetEnumerator();
+        }
 
-    /// <summary>
-    /// Logs a critical message with exception and prefix.
-    /// </summary>
-    /// <param name="exception">The exception to log.</param>
-    /// <param name="message">The log message template.</param>
-    /// <param name="args">Optional arguments for message formatting.</param>
-    public void LogCritical(Exception exception, string message, params object[] args) =>
-        _logger.LogCritical(exception, $"{Prefix} {message}", args);
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
 }
