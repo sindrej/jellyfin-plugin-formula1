@@ -14,7 +14,6 @@ public class PluginConfiguration : BasePluginConfiguration
     {
         // Default to free tier API key
         ApiKey = "8235861265252";
-        CacheDurationDays = 7;
         EnablePlugin = true;
         MaxRequestsPerMinute = 30;
     }
@@ -23,11 +22,6 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the TheSportsDB API key.
     /// </summary>
     public string ApiKey { get; set; }
-
-    /// <summary>
-    /// Gets or sets the cache duration in days for metadata.
-    /// </summary>
-    public int CacheDurationDays { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the plugin is enabled.

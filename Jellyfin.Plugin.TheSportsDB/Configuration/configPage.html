@@ -25,11 +25,6 @@
                         </div>
                     </div>
                     <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="CacheDurationDays">Cache Duration (Days)</label>
-                        <input id="CacheDurationDays" name="CacheDurationDays" type="number" is="emby-input" min="1" max="365" />
-                        <div class="fieldDescription">How long to cache metadata (1-365 days). Longer duration reduces API calls.</div>
-                    </div>
-                    <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="MaxRequestsPerMinute">Max Requests Per Minute</label>
                         <input id="MaxRequestsPerMinute" name="MaxRequestsPerMinute" type="number" is="emby-input" min="1" max="200" />
                         <div class="fieldDescription">Rate limit for API requests. Free tier: 30, Premium tier: 100</div>
@@ -53,7 +48,6 @@
                     ApiClient.getPluginConfiguration(TheSportsDBConfig.pluginUniqueId).then(function (config) {
                         document.querySelector('#EnablePlugin').checked = config.EnablePlugin;
                         document.querySelector('#ApiKey').value = config.ApiKey;
-                        document.querySelector('#CacheDurationDays').value = config.CacheDurationDays;
                         document.querySelector('#MaxRequestsPerMinute').value = config.MaxRequestsPerMinute;
                         Dashboard.hideLoadingMsg();
                     });
@@ -65,7 +59,6 @@
                 ApiClient.getPluginConfiguration(TheSportsDBConfig.pluginUniqueId).then(function (config) {
                     config.EnablePlugin = document.querySelector('#EnablePlugin').checked;
                     config.ApiKey = document.querySelector('#ApiKey').value;
-                    config.CacheDurationDays = parseInt(document.querySelector('#CacheDurationDays').value);
                     config.MaxRequestsPerMinute = parseInt(document.querySelector('#MaxRequestsPerMinute').value);
                     ApiClient.updatePluginConfiguration(TheSportsDBConfig.pluginUniqueId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);

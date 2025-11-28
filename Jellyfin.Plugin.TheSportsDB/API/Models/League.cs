@@ -11,77 +11,77 @@ public class League
     /// Gets or sets the league ID.
     /// </summary>
     [JsonPropertyName("idLeague")]
-    public string? IdLeague { get; set; }
+    public string? Id { get; set; }
 
     /// <summary>
     /// Gets or sets the league name.
     /// </summary>
     [JsonPropertyName("strLeague")]
-    public string? StrLeague { get; set; }
+    public string? Name { get; set; }
 
     /// <summary>
     /// Gets or sets the alternate league names (comma-separated).
     /// </summary>
     [JsonPropertyName("strLeagueAlternate")]
-    public string? StrLeagueAlternate { get; set; }
+    public string? AlternateName { get; set; }
 
     /// <summary>
     /// Gets or sets the sport type.
     /// </summary>
     [JsonPropertyName("strSport")]
-    public string? StrSport { get; set; }
+    public string? Sport { get; set; }
 
     /// <summary>
     /// Gets or sets the English description.
     /// </summary>
     [JsonPropertyName("strDescriptionEN")]
-    public string? StrDescriptionEN { get; set; }
+    public string? DescriptionEng { get; set; }
 
     /// <summary>
     /// Gets or sets the banner image URL.
     /// </summary>
     [JsonPropertyName("strBanner")]
-    public string? StrBanner { get; set; }
+    public string? Banner { get; set; }
 
     /// <summary>
     /// Gets or sets the badge image URL.
     /// </summary>
     [JsonPropertyName("strBadge")]
-    public string? StrBadge { get; set; }
+    public string? Badge { get; set; }
 
     /// <summary>
     /// Gets or sets the logo image URL.
     /// </summary>
     [JsonPropertyName("strLogo")]
-    public string? StrLogo { get; set; }
+    public string? Logo { get; set; }
 
     /// <summary>
     /// Gets or sets the poster image URL.
     /// </summary>
     [JsonPropertyName("strPoster")]
-    public string? StrPoster { get; set; }
+    public string? Poster { get; set; }
 
     /// <summary>
     /// Gets or sets the first fanart image URL.
     /// </summary>
     [JsonPropertyName("strFanart1")]
-    public string? StrFanart1 { get; set; }
+    public string? Fanart1 { get; set; }
 
     /// <summary>
     /// Gets or sets the second fanart image URL.
     /// </summary>
     [JsonPropertyName("strFanart2")]
-    public string? StrFanart2 { get; set; }
+    public string? Fanart2 { get; set; }
 
     /// <summary>
     /// Gets or sets the third fanart image URL.
     /// </summary>
     [JsonPropertyName("strFanart3")]
-    public string? StrFanart3 { get; set; }
+    public string? Fanart3 { get; set; }
 
     /// <summary>
     /// Gets or sets the fourth fanart image URL.
     /// </summary>
     [JsonPropertyName("strFanart4")]
-    public string? StrFanart4 { get; set; }
+    public string? Fanart4 { get; set; }
 }

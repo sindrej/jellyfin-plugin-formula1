@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.TheSportsDB.API;
+using Jellyfin.Plugin.TheSportsDB.Logger;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
@@ -18,11 +19,9 @@ namespace Jellyfin.Plugin.TheSportsDB.Providers;
 /// Provides sports event metadata for episodes.
 /// Maps: Event → Episode within a League/Season structure.
 /// </summary>
-public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, EpisodeInfo>
+public partial class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, EpisodeInfo>
 {
-    private static readonly System.Text.RegularExpressions.Regex RoundNumberRegex = new System.Text.RegularExpressions.Regex(
-        @"(?:Round|R|Episode|Ep\.?)\s*(\d+)",
-        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly Regex _roundNumberRegex = MyRegex();
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TheSportsDBEpisodeProvider> _logger;
@@ -37,40 +36,12 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
     {
         _httpClientFactory = httpClientFactory;
         _loggerFactory = loggerFactory;
-        _logger = loggerFactory.CreateLogger<TheSportsDBEpisodeProvider>();
+        var baseLogger = loggerFactory.CreateLogger<TheSportsDBEpisodeProvider>();
+        _logger = new PrefixedLogger<TheSportsDBEpisodeProvider>(baseLogger);
     }
 
     /// <inheritdoc />
     public string Name => "TheSportsDB";
-
-    /// <summary>
-    /// Parses the first year from a season string.
-    /// Examples: "2023-2024" → 2023, "2024" → 2024.
-    /// </summary>
-    /// <param name="seasonStr">The season string to parse.</param>
-    /// <returns>The parsed year if found, null otherwise.</returns>
-    private int? ParseSeasonYear(string? seasonStr)
-    {
-        if (string.IsNullOrEmpty(seasonStr))
-        {
-            return null;
-        }
-
-        var separators = new[] { '-', '/', ' ' };
-        var parts = seasonStr.Split(separators, StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var part in parts)
-        {
-            if (int.TryParse(part.Trim(), out var year) && year >= 1900 && year <= 2100)
-            {
-                _logger.LogDebug("Parsed season year {Year} from '{SeasonStr}'", year, seasonStr);
-                return year;
-            }
-        }
-
-        _logger.LogWarning("Could not parse year from season string: {SeasonStr}", seasonStr);
-        return null;
-    }
 
     /// <inheritdoc />
     public async Task<IEnumerable<RemoteSearchResult>> GetSearchResults(EpisodeInfo searchInfo, CancellationToken cancellationToken)
@@ -105,9 +76,9 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
                         Overview = evt.Description ?? evt.Result
                     };
 
-                    if (!string.IsNullOrEmpty(evt.EventId))
+                    if (!string.IsNullOrEmpty(evt.Id))
                     {
-                        result.SetProviderId("TheSportsDB", evt.EventId);
+                        result.SetProviderId("TheSportsDB", evt.Id);
                     }
 
                     if (!string.IsNullOrEmpty(evt.Date) && DateTime.TryParse(evt.Date, out var eventDate))
@@ -139,9 +110,9 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
                         Overview = evt.Description ?? evt.Result
                     };
 
-                    if (!string.IsNullOrEmpty(evt.EventId))
+                    if (!string.IsNullOrEmpty(evt.Id))
                     {
-                        result.SetProviderId("TheSportsDB", evt.EventId);
+                        result.SetProviderId("TheSportsDB", evt.Id);
                     }
 
                     if (!string.IsNullOrEmpty(evt.Date) && DateTime.TryParse(evt.Date, out var eventDate))
@@ -212,7 +183,12 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
                         leagueId,
                         seasonYear.Value,
                         roundNumber.Value);
-                    var events = await client.GetEventsForSeasonAsync(leagueId, seasonYear.Value, cancellationToken).ConfigureAwait(false);
+
+                    var events = await client.GetEventsForSeasonAsync(
+                        leagueId,
+                        seasonYear.Value,
+                        cancellationToken).ConfigureAwait(false);
+
                     raceEvent = events.FirstOrDefault(e =>
                         !string.IsNullOrEmpty(e.Round) &&
                         int.TryParse(e.Round, out var round) &&
@@ -277,10 +253,10 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
                     CommunityRating = null
                 };
 
-                if (!string.IsNullOrEmpty(raceEvent.EventId))
+                if (!string.IsNullOrEmpty(raceEvent.Id))
                 {
-                    result.Item.SetProviderId("TheSportsDB", raceEvent.EventId);
-                    _logger.LogDebug("Set provider ID: TheSportsDB={EventId}", raceEvent.EventId);
+                    result.Item.SetProviderId("TheSportsDB", raceEvent.Id);
+                    _logger.LogDebug("Set provider ID: TheSportsDB={EventId}", raceEvent.Id);
                 }
 
                 if (!string.IsNullOrEmpty(raceEvent.Date) && DateTime.TryParse(raceEvent.Date, out var eventDate))
@@ -337,38 +313,6 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
     }
 
     /// <summary>
-    /// Extracts the season year from episode info.
-    /// </summary>
-    /// <param name="info">The episode info.</param>
-    /// <returns>The season year if found, null otherwise.</returns>
-    private int? ExtractSeasonYear(EpisodeInfo info)
-    {
-        // First try parent index number (season number = year)
-        if (info.ParentIndexNumber.HasValue && info.ParentIndexNumber.Value >= 1900 && info.ParentIndexNumber.Value <= 2100)
-        {
-            _logger.LogDebug("Extracted season year from ParentIndexNumber: {Year}", info.ParentIndexNumber.Value);
-            return info.ParentIndexNumber.Value;
-        }
-
-        // Try to extract year from episode name as fallback
-        if (!string.IsNullOrEmpty(info.Name))
-        {
-            var parts = info.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var part in parts)
-            {
-                if (int.TryParse(part, out var year) && year >= 1900 && year <= 2100)
-                {
-                    _logger.LogDebug("Extracted season year from episode Name '{Name}': {Year}", info.Name, year);
-                    return year;
-                }
-            }
-        }
-
-        _logger.LogDebug("Could not extract season year from episode info");
-        return null;
-    }
-
-    /// <summary>
     /// Extracts the round number from episode name using regex patterns.
     /// </summary>
     /// <param name="name">The episode name (e.g., "Round 22 - Las Vegas Grand Prix").</param>
@@ -380,7 +324,7 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
             return null;
         }
 
-        var match = RoundNumberRegex.Match(name);
+        var match = _roundNumberRegex.Match(name);
         if (match.Success && int.TryParse(match.Groups[1].Value, out var roundNumber))
         {
             _logger.LogDebug("Extracted round number from name '{Name}': {RoundNumber}", name, roundNumber);
@@ -404,7 +348,7 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
         }
 
         // Remove "Round XX - " or similar prefixes
-        var cleanName = RoundNumberRegex.Replace(name, string.Empty)
+        var cleanName = _roundNumberRegex.Replace(name, string.Empty)
             .Trim('-', ' ', '_');
 
         if (string.IsNullOrWhiteSpace(cleanName))
@@ -415,4 +359,7 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
         _logger.LogDebug("Extracted event name from '{OriginalName}': '{EventName}'", name, cleanName);
         return cleanName;
     }
+
+    [GeneratedRegex(@"(?:Round|R|Episode|Ep\.?)\s*(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-NO")]
+    private static partial Regex MyRegex();
 }

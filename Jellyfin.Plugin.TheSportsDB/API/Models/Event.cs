@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace Jellyfin.Plugin.TheSportsDB.API.Models;
@@ -12,7 +11,7 @@ public class Event
     /// Gets or sets the event ID.
     /// </summary>
     [JsonPropertyName("idEvent")]
-    public string? EventId { get; set; }
+    public string? Id { get; set; }
 
     /// <summary>
     /// Gets or sets the API Football ID.

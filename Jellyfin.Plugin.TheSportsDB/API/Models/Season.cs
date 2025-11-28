@@ -11,7 +11,7 @@ public class Season
     /// Gets or sets the season ID.
     /// </summary>
     [JsonPropertyName("idSeason")]
-    public string? SeasonId { get; set; }
+    public string? Id { get; set; }
 
     /// <summary>
     /// Gets or sets the season name/year (e.g., "2024" or "2023-2024").
