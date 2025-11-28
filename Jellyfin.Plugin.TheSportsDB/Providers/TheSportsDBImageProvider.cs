@@ -156,41 +156,41 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     /// <param name="images">The images collection.</param>
     private void AddEventImages(API.Models.Event raceEvent, List<RemoteImageInfo> images)
     {
-        if (!string.IsNullOrEmpty(raceEvent.StrPoster))
+        if (!string.IsNullOrEmpty(raceEvent.Poster))
         {
             images.Add(new RemoteImageInfo
             {
-                Url = raceEvent.StrPoster,
+                Url = raceEvent.Poster,
                 Type = ImageType.Primary,
                 ProviderName = Name
             });
         }
 
-        if (!string.IsNullOrEmpty(raceEvent.StrThumb))
+        if (!string.IsNullOrEmpty(raceEvent.Thumb))
         {
             images.Add(new RemoteImageInfo
             {
-                Url = raceEvent.StrThumb,
+                Url = raceEvent.Thumb,
                 Type = ImageType.Thumb,
                 ProviderName = Name
             });
         }
 
-        if (!string.IsNullOrEmpty(raceEvent.StrBanner))
+        if (!string.IsNullOrEmpty(raceEvent.Banner))
         {
             images.Add(new RemoteImageInfo
             {
-                Url = raceEvent.StrBanner,
+                Url = raceEvent.Banner,
                 Type = ImageType.Banner,
                 ProviderName = Name
             });
         }
 
-        if (!string.IsNullOrEmpty(raceEvent.StrFanart))
+        if (!string.IsNullOrEmpty(raceEvent.Fanart))
         {
             images.Add(new RemoteImageInfo
             {
-                Url = raceEvent.StrFanart,
+                Url = raceEvent.Fanart,
                 Type = ImageType.Backdrop,
                 ProviderName = Name
             });
