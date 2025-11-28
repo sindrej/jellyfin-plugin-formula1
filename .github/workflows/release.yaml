@@ -6,7 +6,7 @@ on:
       - master
     paths:
       - 'build.yaml'
-      - 'Jellyfin.Plugin.TheSportsDB/**'
+      - 'Jellyfin.Plugin.Tsdb/**'
 
 permissions:
   contents: write
@@ -51,7 +51,7 @@ jobs:
       - name: Build and publish plugin
         if: steps.check_tag.outputs.exists == 'false'
         run: |
-          dotnet publish Jellyfin.Plugin.TheSportsDB/Jellyfin.Plugin.Tsdb.csproj \
+          dotnet publish Jellyfin.Plugin.Tsdb/Jellyfin.Plugin.Tsdb.csproj \
             --configuration Release \
             --output publish/
 
@@ -86,7 +86,7 @@ jobs:
           mkdir -p release
           cd publish
           zip -r ../release/jellyfin-plugin-formula1_${VERSION}.zip \
-            Jellyfin.Plugin.TheSportsDB.dll \
+            Jellyfin.Plugin.Tsdb.dll \
             meta.json
           cd ..
 
@@ -188,7 +188,7 @@ jobs:
             echo "### Option 2: Manual Installation"
             echo ""
             echo "1. Download \`jellyfin-plugin-formula1_${VERSION}.zip\`"
-            echo "2. Extract \`Jellyfin.Plugin.TheSportsDB.dll\`"
+            echo "2. Extract \`Jellyfin.Plugin.Tsdb.dll\`"
             echo "3. Copy to your Jellyfin plugins directory"
             echo "4. Restart Jellyfin"
             echo ""
