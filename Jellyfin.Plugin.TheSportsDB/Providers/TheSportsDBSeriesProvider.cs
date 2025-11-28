@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.TheSportsDB.API;
+using Jellyfin.Plugin.TheSportsDB.Logger;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Entities;
@@ -20,7 +20,7 @@ namespace Jellyfin.Plugin.TheSportsDB.Providers;
 /// </summary>
 public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesInfo>
 {
-    private static readonly char[] NameSeparators = { ' ', '-', '_', ',' };
+    private static readonly char[] _nameSeparators = [' ', '-', '_', ','];
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TheSportsDBSeriesProvider> _logger;
@@ -35,7 +35,8 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
     {
         _httpClientFactory = httpClientFactory;
         _loggerFactory = loggerFactory;
-        _logger = loggerFactory.CreateLogger<TheSportsDBSeriesProvider>();
+        var baseLogger = loggerFactory.CreateLogger<TheSportsDBSeriesProvider>();
+        _logger = new PrefixedLogger<TheSportsDBSeriesProvider>(baseLogger);
     }
 
     /// <inheritdoc />
@@ -60,25 +61,27 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
 
             foreach (var league in allLeagues)
             {
-                if (IsLeagueMatch(searchInfo.Name, league))
+                if (!IsLeagueMatch(searchInfo.Name, league))
                 {
-                    var result = new RemoteSearchResult
-                    {
-                        Name = league.StrLeague,
-                        SearchProviderName = Name,
-                        Overview = league.StrDescriptionEN,
-                        ImageUrl = league.StrBadge ?? league.StrLogo ?? league.StrPoster
-                    };
-
-                    if (!string.IsNullOrEmpty(league.IdLeague))
-                    {
-                        result.SetProviderId("TheSportsDB", league.IdLeague);
-                    }
-
-                    results.Add(result);
-
-                    _logger.LogDebug("Found matching league: {LeagueName} (ID: {LeagueId})", league.StrLeague, league.IdLeague);
+                    continue;
                 }
+
+                var result = new RemoteSearchResult
+                {
+                    Name = league.Name,
+                    SearchProviderName = Name,
+                    Overview = league.DescriptionEng,
+                    ImageUrl = league.Badge ?? league.Logo ?? league.Poster
+                };
+
+                if (!string.IsNullOrEmpty(league.Id))
+                {
+                    result.SetProviderId("TheSportsDB", league.Id);
+                }
+
+                results.Add(result);
+
+                _logger.LogDebug("Found matching league: {LeagueName} (ID: {LeagueId})", league.Name, league.Id);
             }
 
             _logger.LogInformation("Found {Count} matching leagues for '{Name}'", results.Count, searchInfo.Name);
@@ -128,7 +131,7 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
 
                 if (league != null)
                 {
-                    _logger.LogInformation("Found league: {LeagueName} (ID: {LeagueId})", league.StrLeague, league.IdLeague);
+                    _logger.LogInformation("Found league: {LeagueName} (ID: {LeagueId})", league.Name, league.Id);
                 }
                 else
                 {
@@ -137,20 +140,20 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
                 }
             }
 
-            if (league != null && !string.IsNullOrEmpty(league.IdLeague))
+            if (league != null && !string.IsNullOrEmpty(league.Id))
             {
                 result.Item = new Series
                 {
-                    Name = league.StrLeague,
-                    Overview = league.StrDescriptionEN
+                    Name = league.Name,
+                    Overview = league.DescriptionEng
                 };
 
-                result.Item.SetProviderId("TheSportsDB", league.IdLeague);
+                result.Item.SetProviderId("TheSportsDB", league.Id);
 
                 // Set genres based on sport type
-                if (!string.IsNullOrEmpty(league.StrSport))
+                if (!string.IsNullOrEmpty(league.Sport))
                 {
-                    result.Item.Genres = new[] { league.StrSport, "Sports" };
+                    result.Item.Genres = new[] { league.Sport, "Sports" };
                 }
                 else
                 {
@@ -158,7 +161,7 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
                 }
 
                 result.HasMetadata = true;
-                _logger.LogInformation("Successfully retrieved metadata for league: {LeagueName}", league.StrLeague);
+                _logger.LogInformation("Successfully retrieved metadata for league: {LeagueName}", league.Name);
             }
         }
         catch (Exception ex)
@@ -193,13 +196,13 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
     /// <returns>True if the names match, false otherwise.</returns>
     private bool IsLeagueMatch(string? searchName, API.Models.League league)
     {
-        if (string.IsNullOrEmpty(searchName) || string.IsNullOrEmpty(league.StrLeague))
+        if (string.IsNullOrEmpty(searchName) || string.IsNullOrEmpty(league.Name))
         {
             return false;
         }
 
         var normalizedSearch = searchName.ToLowerInvariant().Trim();
-        var normalizedLeague = league.StrLeague.ToLowerInvariant().Trim();
+        var normalizedLeague = league.Name.ToLowerInvariant().Trim();
 
         // Exact match
         if (normalizedSearch == normalizedLeague)
@@ -208,9 +211,9 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
         }
 
         // Check alternate names
-        if (!string.IsNullOrEmpty(league.StrLeagueAlternate))
+        if (!string.IsNullOrEmpty(league.AlternateName))
         {
-            var alternates = league.StrLeagueAlternate.Split(NameSeparators, StringSplitOptions.RemoveEmptyEntries);
+            var alternates = league.AlternateName.Split(_nameSeparators, StringSplitOptions.RemoveEmptyEntries);
             foreach (var alternate in alternates)
             {
                 var normalizedAlternate = alternate.ToLowerInvariant().Trim();
@@ -222,11 +225,6 @@ public class TheSportsDBSeriesProvider : IRemoteMetadataProvider<Series, SeriesI
         }
 
         // Partial match (contains)
-        if (normalizedSearch.Contains(normalizedLeague, StringComparison.Ordinal) || normalizedLeague.Contains(normalizedSearch, StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        return false;
+        return normalizedSearch.Contains(normalizedLeague, StringComparison.Ordinal) || normalizedLeague.Contains(normalizedSearch, StringComparison.Ordinal);
     }
 }

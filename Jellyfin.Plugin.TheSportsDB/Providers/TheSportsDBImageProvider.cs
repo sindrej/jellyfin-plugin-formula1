@@ -5,7 +5,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.TheSportsDB.API;
-using MediaBrowser.Common.Net;
+using Jellyfin.Plugin.TheSportsDB.Logger;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Providers;
@@ -20,8 +20,8 @@ namespace Jellyfin.Plugin.TheSportsDB.Providers;
 /// </summary>
 public class TheSportsDBImageProvider : IRemoteImageProvider
 {
-    private static readonly ImageType[] EpisodeImageTypes = { ImageType.Primary, ImageType.Thumb, ImageType.Backdrop };
-    private static readonly ImageType[] SeriesImageTypes = { ImageType.Primary, ImageType.Logo, ImageType.Banner, ImageType.Backdrop };
+    private static readonly ImageType[] _episodeImageTypes = [ImageType.Primary, ImageType.Thumb, ImageType.Backdrop];
+    private static readonly ImageType[] _seriesImageTypes = [ImageType.Primary, ImageType.Logo, ImageType.Banner, ImageType.Backdrop];
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TheSportsDBImageProvider> _logger;
@@ -36,7 +36,8 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     {
         _httpClientFactory = httpClientFactory;
         _loggerFactory = loggerFactory;
-        _logger = loggerFactory.CreateLogger<TheSportsDBImageProvider>();
+        var baseLogger = loggerFactory.CreateLogger<TheSportsDBImageProvider>();
+        _logger = new PrefixedLogger<TheSportsDBImageProvider>(baseLogger);
     }
 
     /// <inheritdoc />
@@ -45,23 +46,18 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     /// <inheritdoc />
     public bool Supports(BaseItem item)
     {
-        return item is Episode || item is Series;
+        return item is Episode or Series;
     }
 
     /// <inheritdoc />
     public IEnumerable<ImageType> GetSupportedImages(BaseItem item)
     {
-        if (item is Episode)
+        return item switch
         {
-            return EpisodeImageTypes;
-        }
-
-        if (item is Series)
-        {
-            return SeriesImageTypes;
-        }
-
-        return Array.Empty<ImageType>();
+            Episode => _episodeImageTypes,
+            Series => _seriesImageTypes,
+            _ => []
+        };
     }
 
     /// <inheritdoc />
@@ -118,7 +114,7 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
 
                     if (league != null)
                     {
-                        _logger.LogDebug("Adding images for league: {LeagueName}", league.StrLeague);
+                        _logger.LogDebug("Adding images for league: {LeagueName}", league.Name);
                         AddLeagueImages(league, images);
                         _logger.LogInformation("Added {Count} images for series '{SeriesName}'", images.Count, series.Name);
                     }
@@ -204,51 +200,51 @@ public class TheSportsDBImageProvider : IRemoteImageProvider
     /// <param name="images">The images collection.</param>
     private void AddLeagueImages(API.Models.League league, List<RemoteImageInfo> images)
     {
-        if (!string.IsNullOrEmpty(league.StrBadge))
+        if (!string.IsNullOrEmpty(league.Badge))
         {
             images.Add(new RemoteImageInfo
             {
-                Url = league.StrBadge,
+                Url = league.Badge,
                 Type = ImageType.Primary,
                 ProviderName = Name
             });
         }
 
-        if (!string.IsNullOrEmpty(league.StrLogo))
+        if (!string.IsNullOrEmpty(league.Logo))
         {
             images.Add(new RemoteImageInfo
             {
-                Url = league.StrLogo,
+                Url = league.Logo,
                 Type = ImageType.Logo,
                 ProviderName = Name
             });
         }
 
-        if (!string.IsNullOrEmpty(league.StrBanner))
+        if (!string.IsNullOrEmpty(league.Banner))
         {
             images.Add(new RemoteImageInfo
             {
-                Url = league.StrBanner,
+                Url = league.Banner,
                 Type = ImageType.Banner,
                 ProviderName = Name
             });
         }
 
-        if (!string.IsNullOrEmpty(league.StrPoster))
+        if (!string.IsNullOrEmpty(league.Poster))
         {
             images.Add(new RemoteImageInfo
             {
-                Url = league.StrPoster,
+                Url = league.Poster,
                 Type = ImageType.Primary,
                 ProviderName = Name
             });
         }
 
         // Add fanart images
-        AddFanartImage(league.StrFanart1, images);
-        AddFanartImage(league.StrFanart2, images);
-        AddFanartImage(league.StrFanart3, images);
-        AddFanartImage(league.StrFanart4, images);
+        AddFanartImage(league.Fanart1, images);
+        AddFanartImage(league.Fanart2, images);
+        AddFanartImage(league.Fanart3, images);
+        AddFanartImage(league.Fanart4, images);
     }
 
     /// <summary>

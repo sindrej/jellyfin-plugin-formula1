@@ -1,12 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.TheSportsDB.API.Models;
+using Jellyfin.Plugin.TheSportsDB.Logger;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.TheSportsDB.API;
@@ -18,15 +17,15 @@ public class TheSportsDBClient : IDisposable
 {
     private const string BaseUrl = "https://www.thesportsdb.com/api/v1/json";
 
-    private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+    private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<TheSportsDBClient> _logger;
-    private readonly SemaphoreSlim _rateLimitSemaphore = new SemaphoreSlim(1, 1);
-    private readonly Queue<DateTime> _requestTimestamps = new Queue<DateTime>();
+    private readonly SemaphoreSlim _rateLimitSemaphore = new(1, 1);
+    private readonly Queue<DateTime> _requestTimestamps = new();
     private bool _disposed;
 
     /// <summary>
@@ -37,18 +36,18 @@ public class TheSportsDBClient : IDisposable
     public TheSportsDBClient(IHttpClientFactory httpClientFactory, ILogger<TheSportsDBClient> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _logger = logger;
+        _logger = new PrefixedLogger<TheSportsDBClient>(logger);
     }
 
     /// <summary>
     /// Gets the API key from plugin configuration.
     /// </summary>
-    private string ApiKey => Plugin.Instance?.Configuration?.ApiKey ?? "123";
+    private static string ApiKey => Plugin.Instance?.Configuration?.ApiKey ?? "123";
 
     /// <summary>
     /// Gets the maximum requests per minute from plugin configuration.
     /// </summary>
-    private int MaxRequestsPerMinute => Plugin.Instance?.Configuration?.MaxRequestsPerMinute ?? 30;
+    private static int MaxRequestsPerMinute => Plugin.Instance?.Configuration?.MaxRequestsPerMinute ?? 30;
 
     /// <summary>
     /// Enforces rate limiting before making API requests.
@@ -106,10 +105,10 @@ public class TheSportsDBClient : IDisposable
         _logger.LogDebug("Requesting: {Url}", url);
 
         var httpClient = _httpClientFactory.CreateClient();
-        var maxRetries = 3;
+        const int MaxRetries = 3;
         var retryDelay = TimeSpan.FromSeconds(2);
 
-        for (var attempt = 0; attempt < maxRetries; attempt++)
+        for (var attempt = 0; attempt < MaxRetries; attempt++)
         {
             try
             {
@@ -125,15 +124,15 @@ public class TheSportsDBClient : IDisposable
                 response.EnsureSuccessStatusCode();
 
                 var content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                var result = JsonSerializer.Deserialize<T>(content, JsonOptions);
+                var result = JsonSerializer.Deserialize<T>(content, _jsonOptions);
 
                 return result;
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "HTTP request failed (attempt {Attempt}/{MaxRetries})", attempt + 1, maxRetries);
+                _logger.LogError(ex, "HTTP request failed (attempt {Attempt}/{MaxRetries})", attempt + 1, MaxRetries);
 
-                if (attempt < maxRetries - 1)
+                if (attempt < MaxRetries - 1)
                 {
                     await Task.Delay(retryDelay * (attempt + 1), cancellationToken).ConfigureAwait(false);
                 }
@@ -167,7 +166,7 @@ public class TheSportsDBClient : IDisposable
                 "Sample event: {EventName} (Round {Round}, ID: {EventId})",
                 events[0].Name,
                 events[0].Round,
-                events[0].EventId);
+                events[0].Id);
         }
 
         return events;
@@ -230,7 +229,7 @@ public class TheSportsDBClient : IDisposable
         var league = response?.Leagues is { Count: > 0 } leagues ? leagues[0] : null;
         if (league != null)
         {
-            _logger.LogDebug("Found league: {LeagueName} (ID: {LeagueId})", league.StrLeague, league.IdLeague);
+            _logger.LogDebug("Found league: {LeagueName} (ID: {LeagueId})", league.Name, league.Id);
         }
         else
         {
