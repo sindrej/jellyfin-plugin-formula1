@@ -43,7 +43,10 @@ public sealed class PrefixedLogger<T> : ILogger<T>
         Func<TState, Exception?, string> formatter)
     {
         ArgumentNullException.ThrowIfNull(formatter);
-        _logger.Log(logLevel, eventId, state, exception, (s, e) => $"{Prefix} {formatter(s, e)}");
+
+        // Apply prefix to the final formatted message
+        var originalMessage = formatter(state, exception);
+        _logger.Log(logLevel, eventId, state, exception, (s, e) => $"{Prefix} {originalMessage}");
     }
 
     /// <summary>
