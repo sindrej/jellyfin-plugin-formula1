@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>TheSportsDB</title>
+</head>
+<body>
+    <div id="TheSportsDBConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="TheSportsDBConfigForm">
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnablePlugin" name="EnablePlugin" type="checkbox" is="emby-checkbox" />
+                            <span>Enable Plugin</span>
+                        </label>
+                        <div class="fieldDescription">Enable or disable the TheSportsDB metadata provider</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ApiKey">API Key</label>
+                        <input id="ApiKey" name="ApiKey" type="text" is="emby-input" />
+                        <div class="fieldDescription">
+                            TheSportsDB API key. Default is "123" (free tier).
+                            Get your own key at <a href="https://www.thesportsdb.com/api.php" target="_blank">TheSportsDB.com</a>
+                        </div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MaxRequestsPerMinute">Max Requests Per Minute</label>
+                        <input id="MaxRequestsPerMinute" name="MaxRequestsPerMinute" type="number" is="emby-input" min="1" max="200" />
+                        <div class="fieldDescription">Rate limit for API requests. Free tier: 30, Premium tier: 100</div>
+                    </div>
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            var TheSportsDBConfig = {
+                pluginUniqueId: '55d3efd0-c081-4e0b-a57a-09402a4d549d'
+            };
+
+            document.querySelector('#TheSportsDBConfigPage')
+                .addEventListener('pageshow', function() {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(TheSportsDBConfig.pluginUniqueId).then(function (config) {
+                        document.querySelector('#EnablePlugin').checked = config.EnablePlugin;
+                        document.querySelector('#ApiKey').value = config.ApiKey;
+                        document.querySelector('#MaxRequestsPerMinute').value = config.MaxRequestsPerMinute;
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+            document.querySelector('#TheSportsDBConfigForm')
+                .addEventListener('submit', function(e) {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(TheSportsDBConfig.pluginUniqueId).then(function (config) {
+                    config.EnablePlugin = document.querySelector('#EnablePlugin').checked;
+                    config.ApiKey = document.querySelector('#ApiKey').value;
+                    config.MaxRequestsPerMinute = parseInt(document.querySelector('#MaxRequestsPerMinute').value);
+                    ApiClient.updatePluginConfiguration(TheSportsDBConfig.pluginUniqueId, config).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    });
+                });
+
+                e.preventDefault();
+                return false;
+            });
+        </script>
+    </div>
+</body>
+</html>
