@@ -43,7 +43,7 @@ public class TheSportsDBClient : IDisposable
     /// <summary>
     /// Gets the API key from plugin configuration.
     /// </summary>
-    private string ApiKey => Plugin.Instance?.Configuration?.ApiKey ?? "3";
+    private string ApiKey => Plugin.Instance?.Configuration?.ApiKey ?? "123";
 
     /// <summary>
     /// Gets the maximum requests per minute from plugin configuration.
@@ -165,9 +165,9 @@ public class TheSportsDBClient : IDisposable
         {
             _logger.LogDebug(
                 "Sample event: {EventName} (Round {Round}, ID: {EventId})",
-                events[0].StrEvent,
-                events[0].IntRound,
-                events[0].IdEvent);
+                events[0].Name,
+                events[0].Round,
+                events[0].EventId);
         }
 
         return events;
@@ -189,9 +189,9 @@ public class TheSportsDBClient : IDisposable
         {
             _logger.LogDebug(
                 "Found event: {EventName} (Round {Round}, Season {Season})",
-                evt.StrEvent,
-                evt.IntRound,
-                evt.StrSeason);
+                evt.Name,
+                evt.Round,
+                evt.Season);
         }
         else
         {
@@ -249,7 +249,7 @@ public class TheSportsDBClient : IDisposable
     public async Task<IReadOnlyList<Season>> GetLeagueSeasonsAsync(string leagueId, CancellationToken cancellationToken)
     {
         _logger.LogDebug("Fetching seasons for league ID: {LeagueId}", leagueId);
-        var endpoint = $"search_all_seasons.php?id={leagueId}";
+        var endpoint = $"search_all_seasons.php?id={leagueId}&poster=1";
         var response = await GetAsync<SeasonsResponse>(endpoint, cancellationToken).ConfigureAwait(false);
         var seasons = response?.Seasons ?? Array.Empty<Season>();
         _logger.LogDebug("Found {Count} seasons for league {LeagueId}", seasons.Count, leagueId);

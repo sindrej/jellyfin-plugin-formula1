@@ -11,17 +11,23 @@ public class Season
     /// Gets or sets the season ID.
     /// </summary>
     [JsonPropertyName("idSeason")]
-    public string? IdSeason { get; set; }
+    public string? SeasonId { get; set; }
 
     /// <summary>
     /// Gets or sets the season name/year (e.g., "2024" or "2023-2024").
     /// </summary>
     [JsonPropertyName("strSeason")]
-    public string? StrSeason { get; set; }
+    public string? Name { get; set; }
 
     /// <summary>
     /// Gets or sets the league ID this season belongs to.
     /// </summary>
     [JsonPropertyName("idLeague")]
-    public string? IdLeague { get; set; }
+    public string? LeagueId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the season poster image URL.
+    /// </summary>
+    [JsonPropertyName("strPoster")]
+    public string? Poster { get; set; }
 }

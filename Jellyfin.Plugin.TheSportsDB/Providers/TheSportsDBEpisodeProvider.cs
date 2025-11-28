@@ -99,23 +99,23 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
                 {
                     var result = new RemoteSearchResult
                     {
-                        Name = evt.StrEvent,
+                        Name = evt.Name,
                         SearchProviderName = Name,
-                        ImageUrl = evt.StrPoster ?? evt.StrThumb,
-                        Overview = evt.StrDescriptionEN ?? evt.StrResult
+                        ImageUrl = evt.Poster ?? evt.Thumb,
+                        Overview = evt.Description ?? evt.Result
                     };
 
-                    if (!string.IsNullOrEmpty(evt.IdEvent))
+                    if (!string.IsNullOrEmpty(evt.EventId))
                     {
-                        result.SetProviderId("TheSportsDB", evt.IdEvent);
+                        result.SetProviderId("TheSportsDB", evt.EventId);
                     }
 
-                    if (!string.IsNullOrEmpty(evt.DateEvent) && DateTime.TryParse(evt.DateEvent, out var eventDate))
+                    if (!string.IsNullOrEmpty(evt.Date) && DateTime.TryParse(evt.Date, out var eventDate))
                     {
                         result.PremiereDate = eventDate;
                     }
 
-                    if (!string.IsNullOrEmpty(evt.IntRound) && int.TryParse(evt.IntRound, out var roundNumber))
+                    if (!string.IsNullOrEmpty(evt.Round) && int.TryParse(evt.Round, out var roundNumber))
                     {
                         result.IndexNumber = roundNumber;
                     }
@@ -129,22 +129,22 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
                 _logger.LogDebug("Searching events by name: {Name}", searchInfo.Name);
                 var events = await client.SearchEventsAsync(searchInfo.Name, cancellationToken).ConfigureAwait(false);
 
-                foreach (var evt in events.Where(e => e.StrSeason != null))
+                foreach (var evt in events.Where(e => e.Season != null))
                 {
                     var result = new RemoteSearchResult
                     {
-                        Name = evt.StrEvent,
+                        Name = evt.Name,
                         SearchProviderName = Name,
-                        ImageUrl = evt.StrPoster ?? evt.StrThumb,
-                        Overview = evt.StrDescriptionEN ?? evt.StrResult
+                        ImageUrl = evt.Poster ?? evt.Thumb,
+                        Overview = evt.Description ?? evt.Result
                     };
 
-                    if (!string.IsNullOrEmpty(evt.IdEvent))
+                    if (!string.IsNullOrEmpty(evt.EventId))
                     {
-                        result.SetProviderId("TheSportsDB", evt.IdEvent);
+                        result.SetProviderId("TheSportsDB", evt.EventId);
                     }
 
-                    if (!string.IsNullOrEmpty(evt.DateEvent) && DateTime.TryParse(evt.DateEvent, out var eventDate))
+                    if (!string.IsNullOrEmpty(evt.Date) && DateTime.TryParse(evt.Date, out var eventDate))
                     {
                         result.PremiereDate = eventDate;
                     }
@@ -214,13 +214,13 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
                         roundNumber.Value);
                     var events = await client.GetEventsForSeasonAsync(leagueId, seasonYear.Value, cancellationToken).ConfigureAwait(false);
                     raceEvent = events.FirstOrDefault(e =>
-                        !string.IsNullOrEmpty(e.IntRound) &&
-                        int.TryParse(e.IntRound, out var round) &&
+                        !string.IsNullOrEmpty(e.Round) &&
+                        int.TryParse(e.Round, out var round) &&
                         round == roundNumber.Value);
 
                     if (raceEvent != null)
                     {
-                        _logger.LogInformation("Found event by round number: {EventName}", raceEvent.StrEvent);
+                        _logger.LogInformation("Found event by round number: {EventName}", raceEvent.Name);
                     }
                     else
                     {
@@ -243,12 +243,12 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
 
                         // Try exact match first
                         raceEvent = events.FirstOrDefault(e =>
-                            e.StrEvent != null &&
-                            e.StrEvent.Contains(eventName, StringComparison.OrdinalIgnoreCase));
+                            e.Name != null &&
+                            e.Name.Contains(eventName, StringComparison.OrdinalIgnoreCase));
 
                         if (raceEvent != null)
                         {
-                            _logger.LogInformation("Found event by fuzzy name match: {EventName}", raceEvent.StrEvent);
+                            _logger.LogInformation("Found event by fuzzy name match: {EventName}", raceEvent.Name);
                         }
                         else
                         {
@@ -266,43 +266,43 @@ public class TheSportsDBEpisodeProvider : IRemoteMetadataProvider<Episode, Episo
             {
                 _logger.LogInformation(
                     "Setting metadata for event: {EventName} (Season {Season}, Round {Round})",
-                    raceEvent.StrEvent,
-                    raceEvent.StrSeason,
-                    raceEvent.IntRound);
+                    raceEvent.Name,
+                    raceEvent.Season,
+                    raceEvent.Round);
 
                 result.Item = new Episode
                 {
-                    Name = raceEvent.StrEvent,
-                    Overview = raceEvent.StrDescriptionEN ?? raceEvent.StrResult,
+                    Name = raceEvent.Name,
+                    Overview = raceEvent.Description ?? raceEvent.Result,
                     CommunityRating = null
                 };
 
-                if (!string.IsNullOrEmpty(raceEvent.IdEvent))
+                if (!string.IsNullOrEmpty(raceEvent.EventId))
                 {
-                    result.Item.SetProviderId("TheSportsDB", raceEvent.IdEvent);
-                    _logger.LogDebug("Set provider ID: TheSportsDB={EventId}", raceEvent.IdEvent);
+                    result.Item.SetProviderId("TheSportsDB", raceEvent.EventId);
+                    _logger.LogDebug("Set provider ID: TheSportsDB={EventId}", raceEvent.EventId);
                 }
 
-                if (!string.IsNullOrEmpty(raceEvent.DateEvent) && DateTime.TryParse(raceEvent.DateEvent, out var eventDate))
+                if (!string.IsNullOrEmpty(raceEvent.Date) && DateTime.TryParse(raceEvent.Date, out var eventDate))
                 {
                     result.Item.PremiereDate = eventDate;
                     _logger.LogDebug("Set premiere date: {Date}", eventDate);
                 }
 
-                if (!string.IsNullOrEmpty(raceEvent.IntRound) && int.TryParse(raceEvent.IntRound, out var round))
+                if (!string.IsNullOrEmpty(raceEvent.Round) && int.TryParse(raceEvent.Round, out var round))
                 {
                     result.Item.IndexNumber = round;
                     _logger.LogDebug("Set round number (IndexNumber): {Round}", round);
                 }
 
-                if (!string.IsNullOrEmpty(raceEvent.StrSeason) && int.TryParse(raceEvent.StrSeason, out var season))
+                if (!string.IsNullOrEmpty(raceEvent.Season) && int.TryParse(raceEvent.Season, out var season))
                 {
                     result.Item.ParentIndexNumber = season;
                     _logger.LogDebug("Set season (ParentIndexNumber): {Season}", season);
                 }
 
                 result.HasMetadata = true;
-                _logger.LogInformation("Successfully retrieved metadata for event: {EventName}", raceEvent.StrEvent);
+                _logger.LogInformation("Successfully retrieved metadata for event: {EventName}", raceEvent.Name);
             }
             else
             {
