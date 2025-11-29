@@ -81,18 +81,32 @@ public class TsdbSeasonImageProvider : IRemoteImageProvider
                 {
                     _logger.LogInformation("Fetching images for season {SeasonName} of league {LeagueId}", season.Name, leagueId);
 
-                    // For seasons, we can use league images as fallback
-                    var league = await client.GetLeagueByIdAsync(leagueId, cancellationToken).ConfigureAwait(false);
+                    var seasonYear = season.IndexNumber;
 
-                    if (league != null)
+                    if (!seasonYear.HasValue)
                     {
-                        _logger.LogDebug("Adding league images for season: {SeasonName}", season.Name);
-                        AddLeagueImages(league, images);
-                        _logger.LogInformation("Added {Count} images for season '{SeasonName}'", images.Count, season.Name);
+                        _logger.LogWarning("Season '{SeasonName}' has no IndexNumber set, cannot fetch season-specific images", season.Name);
                     }
                     else
                     {
-                        _logger.LogWarning("No league found with ID: {LeagueId}", leagueId);
+                        var seasons = await client.GetLeagueSeasonsAsync(leagueId, cancellationToken).ConfigureAwait(false);
+                        var apiSeason = seasons.FirstOrDefault(s => s.Name == seasonYear.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+                        if (apiSeason != null && !string.IsNullOrEmpty(apiSeason.Poster))
+                        {
+                            _logger.LogDebug("Adding season poster for {SeasonYear}", seasonYear);
+                            images.Add(new RemoteImageInfo
+                            {
+                                Url = apiSeason.Poster,
+                                Type = ImageType.Primary,
+                                ProviderName = Name
+                            });
+                            _logger.LogInformation("Added season poster for '{SeasonName}'", season.Name);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("No season poster available for league {LeagueId}, year {Year}", leagueId, seasonYear);
+                        }
                     }
                 }
                 else
@@ -115,78 +129,6 @@ public class TsdbSeasonImageProvider : IRemoteImageProvider
     {
         var httpClient = _httpClientFactory.CreateClient();
         return httpClient.GetAsync(url, cancellationToken);
-    }
-
-    /// <summary>
-    /// Adds league images to the collection.
-    /// </summary>
-    /// <param name="league">The league.</param>
-    /// <param name="images">The images collection.</param>
-    private void AddLeagueImages(API.Models.League league, List<RemoteImageInfo> images)
-    {
-        if (!string.IsNullOrEmpty(league.Badge))
-        {
-            images.Add(new RemoteImageInfo
-            {
-                Url = league.Badge,
-                Type = ImageType.Primary,
-                ProviderName = Name
-            });
-        }
-
-        if (!string.IsNullOrEmpty(league.Logo))
-        {
-            images.Add(new RemoteImageInfo
-            {
-                Url = league.Logo,
-                Type = ImageType.Logo,
-                ProviderName = Name
-            });
-        }
-
-        if (!string.IsNullOrEmpty(league.Banner))
-        {
-            images.Add(new RemoteImageInfo
-            {
-                Url = league.Banner,
-                Type = ImageType.Banner,
-                ProviderName = Name
-            });
-        }
-
-        if (!string.IsNullOrEmpty(league.Poster))
-        {
-            images.Add(new RemoteImageInfo
-            {
-                Url = league.Poster,
-                Type = ImageType.Primary,
-                ProviderName = Name
-            });
-        }
-
-        // Add fanart images
-        AddFanartImage(league.Fanart1, images);
-        AddFanartImage(league.Fanart2, images);
-        AddFanartImage(league.Fanart3, images);
-        AddFanartImage(league.Fanart4, images);
-    }
-
-    /// <summary>
-    /// Adds a fanart image to the collection if the URL is not empty.
-    /// </summary>
-    /// <param name="fanartUrl">The fanart URL.</param>
-    /// <param name="images">The images collection.</param>
-    private void AddFanartImage(string? fanartUrl, List<RemoteImageInfo> images)
-    {
-        if (!string.IsNullOrEmpty(fanartUrl))
-        {
-            images.Add(new RemoteImageInfo
-            {
-                Url = fanartUrl,
-                Type = ImageType.Backdrop,
-                ProviderName = Name
-            });
-        }
     }
 
     /// <summary>
